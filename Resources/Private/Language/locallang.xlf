@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<xliff version="1.0">
+	<file source-language="en" datatype="plaintext" original="messages" date="2018-05-31T09:02:17Z" product-name="tm_cloudfront">
+		<header/>
+		<body>
+			<trans-unit id="tx_tmcloudfront_domain_model_invalidation">
+				<source>Invalidation</source>
+			</trans-unit>
+			<trans-unit id="tx_tmcloudfront_domain_model_invalidation.pathsegment">
+				<source>Pathsegment</source>
+			</trans-unit>
+			<trans-unit id="tx_tmcloudfront_task_name">
+				<source>Clear cloud front cache</source>
+			</trans-unit>
+		</body>
+	</file>
+</xliff>

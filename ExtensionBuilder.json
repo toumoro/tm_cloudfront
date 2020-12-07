@@ -1,0 +1,91 @@
+{
+    "modules": [
+        {
+            "config": {
+                "position": [
+                    165,
+                    108
+                ]
+            },
+            "name": "New Model Object",
+            "value": {
+                "actionGroup": {
+                    "_default0_list": false,
+                    "_default1_show": false,
+                    "_default2_new_create": false,
+                    "_default3_edit_update": false,
+                    "_default4_delete": false,
+                    "customActions": []
+                },
+                "name": "Invalidation",
+                "objectsettings": {
+                    "addDeletedField": true,
+                    "addHiddenField": true,
+                    "addStarttimeEndtimeFields": true,
+                    "aggregateRoot": false,
+                    "categorizable": false,
+                    "description": "",
+                    "mapToTable": "",
+                    "parentClass": "",
+                    "sorting": false,
+                    "type": "Entity",
+                    "uid": "1407946100895"
+                },
+                "propertyGroup": {
+                    "properties": [
+                        {
+                            "allowedFileTypes": "",
+                            "maxItems": "1",
+                            "propertyDescription": "",
+                            "propertyIsExcludeField": true,
+                            "propertyIsL10nModeExclude": false,
+                            "propertyIsRequired": false,
+                            "propertyName": "pathsegment",
+                            "propertyType": "Text",
+                            "uid": "433118697996"
+                        }
+                    ]
+                },
+                "relationGroup": {
+                    "relations": []
+                }
+            }
+        }
+    ],
+    "properties": {
+        "backendModules": [],
+        "description": "This extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.",
+        "emConf": {
+            "category": "be",
+            "custom_category": "",
+            "dependsOn": "typo3 => 8.7.0-8.7.99\n",
+            "disableLocalization": false,
+            "disableVersioning": false,
+            "skipGenerateDocumentationTemplate": false,
+            "sourceLanguage": "en",
+            "state": "alpha",
+            "targetVersion": "8.7.0-8.7.99",
+            "version": "1.0.0"
+        },
+        "extensionKey": "tm_cloudfront",
+        "name": "CloudFront cache",
+        "originalExtensionKey": "tm_cloudfront",
+        "originalVendorName": "Toumoro",
+        "persons": [
+            {
+                "company": "Toumoro",
+                "email": "",
+                "name": "Simon Ouellet",
+                "role": "Developer"
+            }
+        ],
+        "plugins": [],
+        "vendorName": "Toumoro"
+    },
+    "wires": [],
+    "log": {
+        "last_modified": "2018-05-31 09:02",
+        "extension_builder_version": "8.7.0",
+        "be_user": " (1)"
+    }
+}
