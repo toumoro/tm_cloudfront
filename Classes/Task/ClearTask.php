@@ -2,7 +2,7 @@
 
  /***
  *
- * This file is part of the "CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
+ * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
  *
  * For the full copyright and license information, please read the
  * LICENSE.txt file that was distributed with this source code.
