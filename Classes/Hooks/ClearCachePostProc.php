@@ -2,7 +2,7 @@
 
 /**
  *
- * This file is part of the "CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
+ * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
  * 
  * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
  *
