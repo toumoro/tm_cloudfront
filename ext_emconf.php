@@ -11,8 +11,8 @@
  ***************************************************************/
 
 $EM_CONF[$_EXTKEY] = [
-    'title' => 'CloudFront cache',
-    'description' => 'This extension is designed to clear  the Aws CloudFront cache based on the speaking path of a page.',
+    'title' => 'AWS CloudFront cache',
+    'description' => 'This extension clears the AWS CloudFront cache based on the speaking path of a page by creating an AWS CloudFront invalidation queue based on clearCacheCmd.',
     'category' => 'be',
     'author' => 'Simon Ouellet',
     'author_email' => 'simon.ouellet@toumoro.com',
