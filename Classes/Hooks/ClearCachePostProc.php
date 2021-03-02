@@ -41,8 +41,11 @@ class ClearCachePostProc {
     public function __construct() {
 
         /* Retrieve extension configuration */
-        $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-        $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
+        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
+        if (!$this->cloudFrontConfiguration) {
+                $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
+                $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
+        }
         
         $this->initTsfe();
     }
