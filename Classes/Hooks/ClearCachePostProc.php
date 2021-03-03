@@ -193,6 +193,7 @@ class ClearCachePostProc {
 
         $this->uriBuilder->setTargetPageUid($pageUid)->setArguments($linkArguments);
         $url = $this->uriBuilder->buildFrontendUri();
+        $url = parse_url($url, PHP_URL_PATH);
         if (empty($url)) {
             //possible if the parent page is exluded from path.
             $url = '/';
