@@ -229,23 +229,28 @@ class ClearCachePostProc {
 
         if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
             $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-            $GLOBALS['BE_USER']->simplelog(implode(',', $this->queue), "tm_cloudfront");
-            $result = $cloudFront->createInvalidation([
-                'DistributionId' => $this->cloudFrontConfiguration['distributionId'], // REQUIRED
-                'InvalidationBatch' => [// REQUIRED
-                    'CallerReference' => $caller, // REQUIRED
-                    'Paths' => [// REQUIRED
-                        'Items' => $this->queue, // items or paths to invalidate
-                        'Quantity' => count($this->queue), // REQUIRED (must be equal to the number of 'Items' in the previus line)
+            foreach(explode(',', $this->cloudFrontConfiguration['distributionId']) as $distributionId) {
+                $GLOBALS['BE_USER']->simplelog(implode(',', $this->queue) . ' [' . $distributionId . ']', "tm_cloudfront");
+                $result = $cloudFront->createInvalidation([
+                    'DistributionId' => $distributionId, // REQUIRED
+                    'InvalidationBatch' => [// REQUIRED
+                        'CallerReference' => $caller, // REQUIRED
+                        'Paths' => [// REQUIRED
+                            'Items' => $this->queue, // items or paths to invalidate
+                            'Quantity' => count($this->queue), // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                        ]
                     ]
-                ]
-            ]);
+                ]);
+            }
         } else {
-            foreach ($this->queue as $k => $value) {
-                $data = [
-                    'pathsegment' => $value
-                ];
-                $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+            foreach(explode(',', $this->cloudFrontConfiguration['distributionId']) as $distributionId) {
+                foreach ($this->queue as $k => $value) {
+                    $data = [
+                        'pathsegment' => $value,
+                        'distributionId' => $distributionId
+                    ];
+                    $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+                }
             }
         }
 
