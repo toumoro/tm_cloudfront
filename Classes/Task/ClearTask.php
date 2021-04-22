@@ -30,7 +30,7 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
         ];
 
         foreach(explode(',', $this->cloudFrontConfiguration['distributionId']) as $distributionId) {
-            list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', 'distributionId = "' . $distributionId . '" or distributionId IS NULL');
+            list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', 'distribution_id = "' . $distributionId . '" or distribution_id IS NULL');
             $count = $row['t'];
 
             if ($count > 0) {
@@ -53,7 +53,7 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                 }
   
                 if ($availableInvalidations > 0) {
-                    $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation', 'distributionId = "' . $distributionId . '" or distributionId IS NULL', '', '', $availableInvalidations);
+                    $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation', 'distribution_id = "' . $distributionId . '" or distribution_id IS NULL', '', '', $availableInvalidations);
                     foreach ($rows as $k => $value) {
 
                         $GLOBALS['BE_USER']->simplelog($value['pathsegment']. ' [' . $distributionId . ']', "tm_cloudfront");
