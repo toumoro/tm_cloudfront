@@ -7,7 +7,11 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
     public function execute() {
         
         $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-        $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront'];
+
+        if (!$this->cloudFrontConfiguration) {
+                $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
+                $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
+        }
 
         $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
         $distributionIds = explode(',',$distributionIds);
