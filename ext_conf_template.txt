@@ -3,8 +3,8 @@ cloudfront {
    apikey =
    # cat=basic/enable; type=string; label=CloudFront API key secret
    apisecret =
-   # cat=basic/enable; type=string; label=Distribution Id
-   distributionId =
+   # cat=basic/enable; type=string; label=Distribution Id comma seperated
+   distributionIds =
    # cat=basic/enable; type=string; label=Region
    region = us-east-1
    # cat=basic/enable; type=string; label=Version

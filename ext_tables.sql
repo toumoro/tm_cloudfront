@@ -7,6 +7,7 @@ CREATE TABLE tx_tmcloudfront_domain_model_invalidation (
 	pid int(11) DEFAULT '0' NOT NULL,
 
 	pathsegment text,
+	distributionId VARCHAR(255),
 
 	tstamp int(11) unsigned DEFAULT '0' NOT NULL,
 	crdate int(11) unsigned DEFAULT '0' NOT NULL,

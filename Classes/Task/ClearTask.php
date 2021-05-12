@@ -1,80 +1,73 @@
 <?php
 
- /***
- *
- * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
- *
- * For the full copyright and license information, please read the
- * LICENSE.txt file that was distributed with this source code.
- *
- *  (c) 2018 Toumoro.com (Simon Ouellet)
- *
- ***/
-
 namespace Toumoro\TmCloudfront\Task;
 
 class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
 
     public function execute() {
+        
+        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
+        $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront'];
+
+        $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
+        $distributionIds = explode(',',$distributionIds);
+        
+        foreach ($distributionIds as $key => $distId) {
 
 
-        list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', '');
-        $count = $row['t'];
-
-        if ($count > 0) {
-
-
-            $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-            $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront'];
-
-
-
-
-            $options = [
-                'version' => $this->cloudFrontConfiguration['version'],
-                'region' => $this->cloudFrontConfiguration['region'],
-                'credentials' => [
-                    'key' => $this->cloudFrontConfiguration['apikey'],
-                    'secret' => $this->cloudFrontConfiguration['apisecret'],
-                ]
-            ];
-            $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-
-
-
-            $list = $cloudFront->listInvalidations([
-                'DistributionId' => $this->cloudFrontConfiguration['distributionId'],
-                'MaxItems' => '30',
-            ]);
-
-            /* the max is 15 but we let 5 spot available for manual clear cache in the backend */
-            $availableInvalidations = 10;
-            $items = $list->get('InvalidationList')['Items'];
-            if (!empty($items)) {
-                foreach ($items as $k => $value) {
-                    if ($value["Status"] != 'Completed') {
-                        $availableInvalidations--;
+            //clean duplicate values
+/*            $GLOBALS['TYPO3_DB']->sql_query("DELETE FROM tx_tmcloudfront_domain_model_invalidation WHERE distributionId = '".$distId."' AND  uid NOT IN (SELECT * FROM (SELECT MAX(n.uid) FROM tx_tmcloudfront_domain_model_invalidation n where distributionId = '".$distId."' GROUP BY n.pathsegment) x)");
+$GLOBALS['TYPO3_DB']->sql_query("delete e.* FROM tx_tmcloudfront_domain_model_invalidation e WHERE e.distributionId = '".$distId."' and e.pathsegment != '/*' and 1 >= ( select id  from (select count(*) as id from tx_tmcloudfront_domain_model_invalidation as reftable WHERE reftable.distributionId = '".$distId."' and reftable.pathsegment = '/*') x)");*/
+            list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'");
+            $count = $row['t'];
+    
+            if ($count > 0) {
+    
+                $options = [
+                    'version' => $this->cloudFrontConfiguration['version'],
+                    'region' => $this->cloudFrontConfiguration['region'],
+                    'credentials' => [
+                        'key' => $this->cloudFrontConfiguration['apikey'],
+                        'secret' => $this->cloudFrontConfiguration['apisecret'],
+                    ]
+                ];
+                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+    
+                $list = $cloudFront->listInvalidations([
+                    'DistributionId' => $distId,
+                    'MaxItems' => '30',
+                ]);
+    
+                /* the max is 15 but we let 5 spot available for manual clear cache in the backend */
+                $availableInvalidations = 10;
+                $items = $list->get('InvalidationList')['Items'];
+                if (!empty($items)) {
+                    foreach ($items as $k => $value) {
+                        if ($value["Status"] != 'Completed') {
+                            $availableInvalidations--;
+                        }
                     }
                 }
-            }
-  
-            if ($availableInvalidations > 0) {
-                $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation', '', '', '', $availableInvalidations);
-                foreach ($rows as $k => $value) {
+      
+                if ($availableInvalidations > 0) {
+                    $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'", '', '', $availableInvalidations);
 
-                    $GLOBALS['BE_USER']->simplelog($value['pathsegment'], "tm_cloudfront");
-                    $result = $cloudFront->createInvalidation([
-                        'DistributionId' => $this->cloudFrontConfiguration['distributionId'], // REQUIRED
-                        'InvalidationBatch' => [// REQUIRED
-                            'CallerReference' => $this->generateRandomString(16), // REQUIRED
-                            'Paths' => [// REQUIRED
-                                'Items' => array($value['pathsegment']), // items or paths to invalidate
-                                'Quantity' => 1, // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                    foreach ($rows as $k => $value) {
+                        
+                        $GLOBALS['BE_USER']->simplelog($value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+                        $result = $cloudFront->createInvalidation([
+                            'DistributionId' => $distId, // REQUIRED
+                            'InvalidationBatch' => [// REQUIRED
+                                'CallerReference' => $this->generateRandomString(16), // REQUIRED
+                                'Paths' => [// REQUIRED
+                                    'Items' => array($value['pathsegment']), // items or paths to invalidate
+                                    'Quantity' => 1, // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                                ]
                             ]
-                        ]
-                    ]);
-
-                    $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', 'uid = ' . $value['uid']);
+                        ]);
+    
+                        $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', 'uid = ' . $value['uid']);
+                    }
                 }
             }
         }

@@ -1,17 +1,9 @@
 <?php
 
 /**
- *
- * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
- * 
  * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
- *
- * For the full copyright and license information, please read the
- * LICENSE.txt file that was distributed with this source code.
- *
- *  (c) 2018 Toumoro.com (Simon Ouellet)
- *
- ***/
+ * @author Simon Ouellet
+ */
 
 namespace Toumoro\TmCloudfront\Hooks;
 
@@ -46,6 +38,11 @@ class ClearCachePostProc {
                 $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
                 $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
         }
+        
+        $this->initTsfe();
+    }
+    
+    public function getCfDistributionIds() {
         
         $this->initTsfe();
     }
@@ -97,22 +94,35 @@ class ClearCachePostProc {
             /* when a clear cache button is clicked */
             $this->cacheCmd($params);
         } else {
+            
             /* When a record is saved */
             $uid = intval($params['uid']);
             $table = strval($params['table']);
             $uid_page = intval($params['uid_page']);
+            
+            /* if it's a page we enqueue the parent */
+            $parentId = $pObj->getPID($table, $uid_page);
+            $tsConfig = $pObj->getTCEMAIN_TSconfig($parentId);
+            
+            //get the distributionId for the root page, null means all (defined in extconf)
+            $distributionIds = null;
+            if (!empty($tsConfig['distributionIds'])) {
+                $distributionIds = $tsConfig['distributionIds'];
+            }
+
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
-                $this->queueClearCache($uid_page, false);
+                $this->queueClearCache($uid_page, false,$distributionIds);
             } else {
-                /* if it's a page we enqueue the parent */
-                $parentId = $pObj->getPID($table, $uid_page);
-                $tsConfig = $pObj->getTCEMAIN_TSconfig($parentId);
+                
+
+                
+
                 if (!$tsConfig['cearCache_disable']) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
-                        $this->queueClearCache($parentId, true);
+                        $this->queueClearCache($parentId, true,$distributionIds);
                     } else {
                         // pid has no valid value: value is no integer or value is a negative integer (-1)
                         return;
@@ -124,7 +134,7 @@ class ClearCachePostProc {
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
                         $cmd = array('cacheCmd' => $cmdPart);
-                        $this->cacheCmd($cmd);
+                        $this->cacheCmd($cmd,$distributionIds);
                     }
                 }
             }
@@ -135,13 +145,14 @@ class ClearCachePostProc {
     /**
      * This function handles the cache clearing buttons and clearCacheCmd tsconfig
      * @params array $params
+     * @params array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
      * @return void
      */
-    protected function cacheCmd($params) {
+    protected function cacheCmd($params,$distributionIds = null) {
         if (($params['cacheCmd'] == "all") || ($params['cacheCmd'] == "pages")) {
-            $this->queueClearCache(0, true);
+            $this->queueClearCache(0, true,$distributionIds);
         } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
-            $this->queueClearCache($params['cacheCmd'], false);
+            $this->queueClearCache($params['cacheCmd'], false,$distributionIds);
         }
     }
 
@@ -155,7 +166,7 @@ class ClearCachePostProc {
      * @param int $pageId entry to clear. 0 means all cache "/"
      * @param bool $recursive recursive entry clearing
      */
-    protected function queueClearCache($pageId, $recursive = false) {
+    protected function queueClearCache($pageId, $recursive = false,$distributionIds = null) {
         $wildcard = '';
         if ($recursive) {
             $wildcard = '*';
@@ -165,24 +176,37 @@ class ClearCachePostProc {
         } else {
             $entry = $pageId;
         }
+        
+        
+        if ($distributionIds === null) {
+            $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
+        }
+
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             /* language handling */
             $databaseConnection = $this->getDatabaseConnection();
             $languages = $databaseConnection->exec_SELECTgetRows('uid', 'sys_language', 'hidden=0');
-
+            
             if (count($languages) > 0) {
-                $this->queue[] = $this->buildLink($entry, array('L' => 0)) . $wildcard;
+                $this->enqueue($this->buildLink($entry, array('L' => 0)) . $wildcard,$distributionIds);
                 foreach ($languages as $k => $lang) {
-                    $this->queue[] = $this->buildLink($entry, array('L' => $lang['uid'])) . $wildcard;
+                    $this->enqueue($this->buildLink($entry, array('L' => $lang['uid'])) . $wildcard,$distributionIds);
                 }
             } else {
-                $this->queue[] = $this->buildLink($entry) . $wildcard;
+                $this->enqueue($this->buildLink($entry) . $wildcard,$distributionIds);
             }
         } else {
-            $this->queue[] = $entry . $wildcard;
+            $this->enqueue($entry . $wildcard,$distributionIds);
         }
         //debug($this->queue);exit;
+    }
+    
+    protected function enqueue($link,$distributionIds) {
+        $distArray = explode(',',$distributionIds);
+        foreach($distArray as $key => $value) {
+            $this->queue[$value][] = $link;
+        }
     }
 
     /**
@@ -206,50 +230,56 @@ class ClearCachePostProc {
      * @return void
      */
     protected function clearCache() {
-        $this->queue = array_unique($this->queue);
 
+        foreach ($this->queue as $distId => $paths) {
 
-        $caller = $this->generateRandomString(16);
-        $options = [
-            'version' => $this->cloudFrontConfiguration['version'],
-            'region' => $this->cloudFrontConfiguration['region'],
-            'credentials' => [
-                'key' => $this->cloudFrontConfiguration['apikey'],
-                'secret' => $this->cloudFrontConfiguration['apisecret'],
-            ]
-        ];
-
-        /* force a clear all cache */
-        $force = false;
-        if (array_search('/*', $this->queue) !== false) {
-//            $force = true;
-            $this->queue = array('/*');
-            $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', '1=1');
-        }
-
-        if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-            $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-            $GLOBALS['BE_USER']->simplelog(implode(',', $this->queue), "tm_cloudfront");
-            $result = $cloudFront->createInvalidation([
-                'DistributionId' => $this->cloudFrontConfiguration['distributionId'], // REQUIRED
-                'InvalidationBatch' => [// REQUIRED
-                    'CallerReference' => $caller, // REQUIRED
-                    'Paths' => [// REQUIRED
-                        'Items' => $this->queue, // items or paths to invalidate
-                        'Quantity' => count($this->queue), // REQUIRED (must be equal to the number of 'Items' in the previus line)
-                    ]
+            $paths = array_unique($paths);
+            
+    
+            $caller = $this->generateRandomString(16);
+            $options = [
+                'version' => $this->cloudFrontConfiguration['version'],
+                'region' => $this->cloudFrontConfiguration['region'],
+                'credentials' => [
+                    'key' => $this->cloudFrontConfiguration['apikey'],
+                    'secret' => $this->cloudFrontConfiguration['apisecret'],
                 ]
-            ]);
-        } else {
-            foreach ($this->queue as $k => $value) {
-                $data = [
-                    'pathsegment' => $value
-                ];
-                $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+            ];
+    
+            /* force a clear all cache */
+            $force = false;
+            if (array_search('/*', $paths) !== false) {
+                $paths = array('/*');
+                $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'");
+            }
+    
+            if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
+                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $GLOBALS['BE_USER']->simplelog(implode(',', $this->queue), "tm_cloudfront");
+                try {
+                    $result = $cloudFront->createInvalidation([
+                        'DistributionId' => $distId, // REQUIRED
+                        'InvalidationBatch' => [// REQUIRED
+                            'CallerReference' => $caller, // REQUIRED
+                            'Paths' => [// REQUIRED
+                                'Items' => $paths, // items or paths to invalidate
+                                'Quantity' => count($paths), // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                            ]
+                        ]
+                    ]);
+                } catch(\Exception $e) {
+                    
+                }
+            } else {
+                foreach ($paths as $k => $value) {
+                    $data = [
+                        'pathsegment' => $value,
+                        'distributionId' => $distId,
+                    ];
+                    $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+                }
             }
         }
-
-        //$GLOBALS['BE_USER']->simplelog(implode(',', $this->queue), "tm_cloudfront");
     }
 
     /**

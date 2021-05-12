@@ -1,17 +1,11 @@
 <?php
 namespace Toumoro\TmCloudfront\Tests\Unit\Domain\Model;
 
-/***
+/**
+ * Test case.
  *
- * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
- *
- * For the full copyright and license information, please read the
- * LICENSE.txt file that was distributed with this source code.
- *
- *  (c) 2018 Toumoro.com (Simon Ouellet)
- *
- ***/
-
+ * @author Simon Ouellet 
+ */
 class InvalidationTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
 {
     /**

@@ -11,11 +11,11 @@
  ***************************************************************/
 
 $EM_CONF[$_EXTKEY] = [
-    'title' => 'AWS CloudFront cache',
-    'description' => 'This extension clears the AWS CloudFront cache based on the speaking path of a page by creating an AWS CloudFront invalidation queue based on clearCacheCmd.',
+    'title' => 'CloudFront cache',
+    'description' => 'This extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.',
     'category' => 'be',
     'author' => 'Simon Ouellet',
-    'author_email' => 'simon.ouellet@toumoro.com',
+    'author_email' => '',
     'state' => 'alpha',
     'uploadfolder' => 0,
     'createDirs' => '',
@@ -24,6 +24,7 @@ $EM_CONF[$_EXTKEY] = [
     'constraints' => [
         'depends' => [
             'typo3' => '8.7.0-10.4.99',
+            'typo3db_legacy' => '*',
         ],
         'conflicts' => [],
         'suggests' => [],

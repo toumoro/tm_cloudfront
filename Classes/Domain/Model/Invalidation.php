@@ -3,12 +3,12 @@ namespace Toumoro\TmCloudfront\Domain\Model;
 
 /***
  *
- * This file is part of the "AWS CloudFront cache" Extension for TYPO3 CMS by Toumoro.com.
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
  *
  * For the full copyright and license information, please read the
  * LICENSE.txt file that was distributed with this source code.
  *
- *  (c) 2018 Toumoro.com (Simon Ouellet)
+ *  (c) 2018 Simon Ouellet, Toumoro
  *
  ***/
 
