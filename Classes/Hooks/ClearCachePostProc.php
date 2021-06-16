@@ -144,8 +144,8 @@ class ClearCachePostProc {
 
     /**
      * This function handles the cache clearing buttons and clearCacheCmd tsconfig
-     * @params array $params
-     * @params array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
+     * @param array $params
+     * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
      * @return void
      */
     protected function cacheCmd($params,$distributionIds = null) {
@@ -304,6 +304,18 @@ class ClearCachePostProc {
             $randomString .= $characters[rand(0, $charactersLength - 1)];
         }
         return $randomString;
+    }
+
+    public function fileMod($file) {
+        if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
+            if ($file->getStorage()->getUid() == $storage) {
+                foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
+                    $this->enqueue('/'.$file->getPublicUrl(),$distributionIds);
+                    $this->clearCache();
+                }
+            }
+        }
+
     }
 
 }
