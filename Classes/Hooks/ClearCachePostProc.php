@@ -308,8 +308,8 @@ class ClearCachePostProc {
 
     public function fileMod($file) {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
-            if ($file->getStorage()->getUid() == $storage) {
-                foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
+            foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
+                if ($file->getStorage()->getUid() == $storage) {
                     $this->enqueue('/'.$file->getPublicUrl(),$distributionIds);
                     $this->clearCache();
                 }
