@@ -20,8 +20,8 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
 
 
             //clean duplicate values
-/*            $GLOBALS['TYPO3_DB']->sql_query("DELETE FROM tx_tmcloudfront_domain_model_invalidation WHERE distributionId = '".$distId."' AND  uid NOT IN (SELECT * FROM (SELECT MAX(n.uid) FROM tx_tmcloudfront_domain_model_invalidation n where distributionId = '".$distId."' GROUP BY n.pathsegment) x)");
-$GLOBALS['TYPO3_DB']->sql_query("delete e.* FROM tx_tmcloudfront_domain_model_invalidation e WHERE e.distributionId = '".$distId."' and e.pathsegment != '/*' and 1 >= ( select id  from (select count(*) as id from tx_tmcloudfront_domain_model_invalidation as reftable WHERE reftable.distributionId = '".$distId."' and reftable.pathsegment = '/*') x)");*/
+            $GLOBALS['TYPO3_DB']->sql_query("delete inv from tx_tmcloudfront_domain_model_invalidation inv inner join tx_tmcloudfront_domain_model_invalidation jt on inv.pathsegment = jt.pathsegment and inv.distributionId = jt.distributionId and jt.uid > inv.uid");
+
             list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'");
             $count = $row['t'];
     
