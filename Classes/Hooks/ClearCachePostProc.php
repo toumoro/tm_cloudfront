@@ -215,9 +215,13 @@ class ClearCachePostProc {
      */
     protected function buildLink($pageUid, $linkArguments = array()) {
 
-        $this->uriBuilder->setTargetPageUid($pageUid)->setArguments($linkArguments);
-        $url = $this->uriBuilder->buildFrontendUri();
-        $url = parse_url($url, PHP_URL_PATH);
+        //some record saving function might raise a tsfe inialisation error
+        try {
+            $this->uriBuilder->setTargetPageUid($pageUid)->setArguments($linkArguments);
+            $url = $this->uriBuilder->buildFrontendUri();
+            $url = parse_url($url, PHP_URL_PATH);
+        } catch (\TypeError $e) {
+        }
         if (empty($url)) {
             //possible if the parent page is exluded from path.
             $url = '/';
