@@ -204,6 +204,13 @@ class ClearCachePostProc {
     
     protected function enqueue($link,$distributionIds) {
         $distArray = explode(',',$distributionIds);
+        
+
+        // for index.php link style
+        if (substr($link,0,1) != '/') {
+            $link = '/'.$link;
+        }
+
         foreach($distArray as $key => $value) {
             $this->queue[$value][] = $link;
         }
