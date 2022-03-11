@@ -58,7 +58,7 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
 
                     foreach ($rows as $k => $value) {
                         
-                        $GLOBALS['BE_USER']->simplelog($value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+                        $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
                         $result = $cloudFront->createInvalidation([
                             'DistributionId' => $distId, // REQUIRED
                             'InvalidationBatch' => [// REQUIRED
