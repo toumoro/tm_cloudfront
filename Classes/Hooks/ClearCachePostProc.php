@@ -10,6 +10,7 @@ namespace Toumoro\TmCloudfront\Hooks;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Configuration\SiteConfiguration;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
@@ -17,7 +18,8 @@ use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
-class ClearCachePostProc {
+class ClearCachePostProc
+{
 
     protected $configurationManager;
     protected $objectManager;
@@ -30,45 +32,33 @@ class ClearCachePostProc {
      * Constructs this object.
      * @return void
      */
-    public function __construct() {
+    public function __construct()
+    {
 
         /* Retrieve extension configuration */
         $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
         if (!$this->cloudFrontConfiguration) {
-                $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-                $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
+            $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
+            $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
         }
-        
-        $this->initTsfe();
+
+        $this->init();
     }
-    
-    public function getCfDistributionIds() {
-        
-        $this->initTsfe();
+
+    public function getCfDistributionIds()
+
+    {
+
+        $this->init();
     }
 
     /**
      * Initialize tsfe for speaking url link creation
      * @return void
      */
-    protected function initTsfe() {
+    protected function init()
+    {
         /* init tsfe */
-
-        if (empty($GLOBALS['TSFE'])) {
-            $GLOBALS['TSFE'] = GeneralUtility::makeInstance('TYPO3\\CMS\\Frontend\\Controller\\TypoScriptFrontendController', $GLOBALS['TYPO3_CONF_VARS'], $id, $type);
-            $GLOBALS['TSFE']->connectToDB();
-            $GLOBALS['TSFE']->initFEuser();
-            $GLOBALS['TSFE']->determineId();
-            $GLOBALS['TSFE']->initTemplate();
-            $GLOBALS['TSFE']->getConfigArray();
-        }
-        $this->objectManager = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('TYPO3\\CMS\Extbase\\Object\\ObjectManager');
-        $this->configurationManager = $this->objectManager->get(ConfigurationManager::class);
-        /** @var ContentObjectRenderer $contentObjectRenderer */
-        $this->contentObjectRenderer = $this->objectManager->get(ContentObjectRenderer::class);
-        $this->configurationManager->setContentObject($this->contentObjectRenderer);
-        $this->uriBuilder = $this->objectManager->get(UriBuilder::class);
-        $this->uriBuilder->injectConfigurationManager($this->configurationManager);
     }
 
     /**
@@ -80,7 +70,8 @@ class ClearCachePostProc {
      *
      * @return    void
      */
-    public function clearCachePostProc(&$params, &$pObj) {
+    public function clearCachePostProc(&$params, &$pObj)
+    {
 
         $pathToClear = array();
         $pageUids = array();
@@ -94,35 +85,35 @@ class ClearCachePostProc {
             /* when a clear cache button is clicked */
             $this->cacheCmd($params);
         } else {
-            
+
             /* When a record is saved */
             $uid = intval($params['uid']);
             $table = strval($params['table']);
             $uid_page = intval($params['uid_page']);
-            
+
             /* if it's a page we enqueue the parent */
             $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig = $pObj->getTCEMAIN_TSconfig($parentId);
-            
+            $tsConfig =  \TYPO3\CMS\backend\Utility\BackendUtility::getPagesTSconfig($parentId);
+
             //get the distributionId for the root page, null means all (defined in extconf)
             $distributionIds = null;
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
             }
+            
+
 
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
-                $this->queueClearCache($uid_page, false,$distributionIds);
+                $this->queueClearCache($uid_page, false, $distributionIds);
             } else {
-                
 
-                
+                if (!$tsConfig['clearCache_disable']) {
 
-                if (!$tsConfig['cearCache_disable']) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
-                        $this->queueClearCache($parentId, true,$distributionIds);
+                        $this->queueClearCache($parentId, true, $distributionIds);
                     } else {
                         // pid has no valid value: value is no integer or value is a negative integer (-1)
                         return;
@@ -134,7 +125,7 @@ class ClearCachePostProc {
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
                         $cmd = array('cacheCmd' => $cmdPart);
-                        $this->cacheCmd($cmd,$distributionIds);
+                        $this->cacheCmd($cmd, $distributionIds);
                     }
                 }
             }
@@ -148,11 +139,12 @@ class ClearCachePostProc {
      * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
      * @return void
      */
-    protected function cacheCmd($params,$distributionIds = null) {
+    protected function cacheCmd($params, $distributionIds = null)
+    {
         if (($params['cacheCmd'] == "all") || ($params['cacheCmd'] == "pages")) {
-            $this->queueClearCache(0, true,$distributionIds);
+            $this->queueClearCache(0, true, $distributionIds);
         } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
-            $this->queueClearCache($params['cacheCmd'], false,$distributionIds);
+            $this->queueClearCache($params['cacheCmd'], false, $distributionIds);
         }
     }
 
@@ -166,7 +158,8 @@ class ClearCachePostProc {
      * @param int $pageId entry to clear. 0 means all cache "/"
      * @param bool $recursive recursive entry clearing
      */
-    protected function queueClearCache($pageId, $recursive = false,$distributionIds = null) {
+    protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
+    {
         $wildcard = '';
         if ($recursive) {
             $wildcard = '*';
@@ -176,8 +169,8 @@ class ClearCachePostProc {
         } else {
             $entry = $pageId;
         }
-        
-        
+
+
         if ($distributionIds === null) {
             $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
         }
@@ -187,31 +180,32 @@ class ClearCachePostProc {
             /* language handling */
             $databaseConnection = $this->getDatabaseConnection();
             $languages = $databaseConnection->exec_SELECTgetRows('uid', 'sys_language', 'hidden=0');
-            
+
             if (count($languages) > 0) {
-                $this->enqueue($this->buildLink($entry, array('L' => 0)) . $wildcard,$distributionIds);
+                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
-                    $this->enqueue($this->buildLink($entry, array('L' => $lang['uid'])) . $wildcard,$distributionIds);
+                    $this->enqueue($this->buildLink($entry, array('_language' => $lang['uid'])) . $wildcard, $distributionIds);
                 }
             } else {
-                $this->enqueue($this->buildLink($entry) . $wildcard,$distributionIds);
+                $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
         } else {
-            $this->enqueue($entry . $wildcard,$distributionIds);
+            $this->enqueue($entry . $wildcard, $distributionIds);
         }
         //debug($this->queue);exit;
     }
-    
-    protected function enqueue($link,$distributionIds) {
-        $distArray = explode(',',$distributionIds);
-        
+
+    protected function enqueue($link, $distributionIds)
+    {
+        $distArray = explode(',', $distributionIds);
+
 
         // for index.php link style
-        if (substr($link,0,1) != '/') {
-            $link = '/'.$link;
+        if (substr($link, 0, 1) != '/') {
+            $link = '/' . $link;
         }
 
-        foreach($distArray as $key => $value) {
+        foreach ($distArray as $key => $value) {
             $this->queue[$value][] = $link;
         }
     }
@@ -220,12 +214,13 @@ class ClearCachePostProc {
      *  Speaking url link generation
      *  @return string
      */
-    protected function buildLink($pageUid, $linkArguments = array()) {
+    protected function buildLink($pageUid, $linkArguments = array())
+    {
 
         //some record saving function might raise a tsfe inialisation error
         try {
-            $this->uriBuilder->setTargetPageUid($pageUid)->setArguments($linkArguments);
-            $url = $this->uriBuilder->buildFrontendUri();
+            $site = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Site\SiteFinder::class)->getSiteByPageId($pageUid);
+            $url = (string)$site->getRouter()->generateUri((string)$pageUid, $linkArguments);
             $url = parse_url($url, PHP_URL_PATH);
         } catch (\TypeError $e) {
         }
@@ -240,13 +235,14 @@ class ClearCachePostProc {
      * This function sends a Cloudfront invalidate query based on the cache queue ($this->queue).
      * @return void
      */
-    protected function clearCache() {
+    protected function clearCache()
+    {
 
         foreach ($this->queue as $distId => $paths) {
 
             $paths = array_unique($paths);
-            
-    
+
+
             $caller = $this->generateRandomString(16);
             $options = [
                 'version' => $this->cloudFrontConfiguration['version'],
@@ -256,30 +252,30 @@ class ClearCachePostProc {
                     'secret' => $this->cloudFrontConfiguration['apisecret'],
                 ]
             ];
-    
+
             /* force a clear all cache */
             $force = false;
             if (array_search('/*', $paths) !== false) {
                 $paths = array('/*');
-                $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'");
+                $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', "distributionId = '" . $distId . "'");
             }
-    
+
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
                 $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-                $GLOBALS['BE_USER']->simplelog(implode(',', $this->queue), "tm_cloudfront");
+                $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+
                 try {
                     $result = $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
-                        'InvalidationBatch' => [// REQUIRED
+                        'InvalidationBatch' => [ // REQUIRED
                             'CallerReference' => $caller, // REQUIRED
-                            'Paths' => [// REQUIRED
+                            'Paths' => [ // REQUIRED
                                 'Items' => $paths, // items or paths to invalidate
                                 'Quantity' => count($paths), // REQUIRED (must be equal to the number of 'Items' in the previus line)
                             ]
                         ]
                     ]);
-                } catch(\Exception $e) {
-                    
+                } catch (\Exception $e) {
                 }
             } else {
                 foreach ($paths as $k => $value) {
@@ -298,7 +294,8 @@ class ClearCachePostProc {
      *
      * @return DatabaseConnection
      */
-    protected function getDatabaseConnection() {
+    protected function getDatabaseConnection()
+    {
         return $GLOBALS['TYPO3_DB'];
     }
 
@@ -307,7 +304,8 @@ class ClearCachePostProc {
      * @param int $length length of the string
      * @return string
      */
-    protected function generateRandomString($length = 10) {
+    protected function generateRandomString($length = 10)
+    {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $charactersLength = strlen($characters);
         $randomString = '';
@@ -317,16 +315,15 @@ class ClearCachePostProc {
         return $randomString;
     }
 
-    public function fileMod($file) {
+    public function fileMod($file)
+    {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
                 if ($file->getStorage()->getUid() == $storage) {
-                    $this->enqueue('/'.$file->getPublicUrl(),$distributionIds);
+                    $this->enqueue('/' . $file->getPublicUrl(), $distributionIds);
                     $this->clearCache();
                 }
             }
         }
-
     }
-
 }
