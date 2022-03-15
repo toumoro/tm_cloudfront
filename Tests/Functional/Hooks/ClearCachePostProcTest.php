@@ -103,34 +103,8 @@ class ClearCachePostProcTest extends  FunctionalTestCase
         );
 
 
-        $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation','1=1');
-        foreach ($rows as $k => $value) {           
-          debug($value);
-        }
-         /*
-        $GLOBALS['TYPO3_CONF_VARS']['BE']['checkStoredRecords'] = '1';
-        $GLOBALS['TYPO3_CONF_VARS']['BE']['checkStoredRecordsLoose'] = '1';
-        $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPermissions'] = [];
-
-        $GLOBALS['TCA'] = []; 
-        $cacheManagerProphecy = $this->prophesize(CacheManager::class); 
-        \TYPO3\CMS\Core\Utility\GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal()); 
-        $cacheFrontendProphecy = $this->prophesize(FrontendInterface::class);
-        $cacheManagerProphecy->getCache('runtime')->willReturncy->reveal());
-        $this->backEndUser = $this->createMock(BackendUserAuthentication::class);  
-
-
-
-        $dataHandler = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('TYPO3\\CMS\\Core\\DataHandling\\DataHandler');
-        $dataHandler->enableLogging = false;
-        $dataHandler->start([], '', $this->backEndUser);
-        //$dataHandler = $this->getAccessibleMock(\TYPO3\CMS\Core\DataHandling\DataHandler::class, ['dummy']);
-
-        $hook = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Toumoro\TmCloudfront\Hooks\ClearCachePostProc');
-        $params = ['uid'=>13,'table'=>'pages','uid_page'=>13];
-        $hook->clearCachePostProc($params,$dataHandler);
-          */
-        $this->assertEquals('','');
+        $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation',"pathsegment in ('/en/sub*','/dk/subtest*')");
+        $this->assertEquals(count($rows),2);
           
     }
 

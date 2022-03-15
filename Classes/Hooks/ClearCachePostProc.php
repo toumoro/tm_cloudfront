@@ -76,6 +76,7 @@ class ClearCachePostProc
         $pathToClear = array();
         $pageUids = array();
 
+
         if ($pObj->BE_USER->workspace > 0) {
             // Do nothing when editor is inside a workspace
             return;
@@ -284,6 +285,8 @@ class ClearCachePostProc
                         'distributionId' => $distId,
                     ];
                     $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+                }
+
                 }
             }
         }
