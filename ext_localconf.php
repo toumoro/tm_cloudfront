@@ -1,4 +1,7 @@
 <?php
+
+defined('TYPO3') or die('Access denied.');
+
 $_EXTKEY = 'tm_cloudfront';
 
 // Clear cache

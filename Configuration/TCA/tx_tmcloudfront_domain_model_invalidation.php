@@ -114,7 +114,6 @@ return [
                 ],
             ],
         ],
-
         'pathsegment' => [
             'exclude' => true,
             'label' => 'LLL:EXT:tm_cloudfront/Resources/Private/Language/locallang_db.xlf:tx_tmcloudfront_domain_model_invalidation.pathsegment',
@@ -125,6 +124,5 @@ return [
                 'eval' => 'trim'
             ]
         ],
-    
     ],
 ];
