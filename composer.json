@@ -1,7 +1,8 @@
 {
     "name": "toumoro/tm-cloudfront",
-    "type": "typo3-cms-extension",
     "description": "this extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.",
+    "license": "GPL-2.0-or-later",
+    "type": "typo3-cms-extension",
     "authors": [
         {
             "name": "Simon Ouellet",
@@ -19,6 +20,11 @@
     "autoload-dev": {
         "psr-4": {
             "Toumoro\\TmCloudfront\\Tests\\": "Tests"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "tm_cloudfront"
         }
     },
     "replace": {

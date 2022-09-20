@@ -15,30 +15,30 @@ namespace Toumoro\TmCloudfront\Task;
  ***/
 
 
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Scheduler\Task\AbstractTask;
+use Doctrine\DBAL\Driver\Exception;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
 
-class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
+
+class ClearTask extends AbstractTask {
 
     /**
      * @return bool
-     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws Exception
      * @throws \Doctrine\DBAL\Exception
+     * @throws ExtensionConfigurationExtensionNotConfiguredException
+     * @throws ExtensionConfigurationPathDoesNotExistException
      */
     public function execute() {
-        
-        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-
-        if (!$this->cloudFrontConfiguration) {
-                $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-                $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
-        }
-
+        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
         $distributionIds = explode(',',$distributionIds);
         
         foreach ($distributionIds as $key => $distId) {
-
             //clean duplicate values
             GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
                 ->prepare("delete inv from tx_tmcloudfront_domain_model_invalidation inv inner join tx_tmcloudfront_domain_model_invalidation jt on inv.pathsegment = jt.pathsegment and inv.distributionId = jt.distributionId and jt.uid > inv.uid")
@@ -55,7 +55,6 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                 ->fetchOne();
     
             if ($count > 0) {
-    
                 $options = [
                     'version' => $this->cloudFrontConfiguration['version'],
                     'region' => $this->cloudFrontConfiguration['region'],
@@ -64,7 +63,7 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                         'secret' => $this->cloudFrontConfiguration['apisecret'],
                     ]
                 ];
-                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
     
                 $list = $cloudFront->listInvalidations([
                     'DistributionId' => $distId,

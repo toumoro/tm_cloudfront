@@ -5,7 +5,7 @@ defined('TYPO3') or die('Access denied.');
 $_EXTKEY = 'tm_cloudfront';
 
 // Clear cache
-$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['clearCachePostProc'][$_EXTKEY] = 'Toumoro\TmCloudfront\Hooks\ClearCachePostProc->clearCachePostProc';
+$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['clearCachePostProc']['tm_cloudfront'] = 'Toumoro\TmCloudfront\Hooks\ClearCachePostProc->clearCachePostProc';
 
 $signalSlotDispatcher = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\SignalSlot\Dispatcher::class);
 
@@ -24,7 +24,7 @@ foreach ($signalsToRegister as $parameters) {
 
 // Add caching framework garbage collection task
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['scheduler']['tasks'][\Toumoro\TmCloudfront\Task\ClearTask::class] = array(
-        'extension' => $_EXTKEY,
-        'title' => 'LLL:EXT:' . $_EXTKEY . '/Resources/Private/Language/locallang.xlf:tx_tmcloudfront_task_name',
+        'extension' => 'tm_cloudfront',
+        'title' => 'LLL:EXT:tm_cloudfront/Resources/Private/Language/locallang.xlf:tx_tmcloudfront_task_name',
         'description' => '',
 );

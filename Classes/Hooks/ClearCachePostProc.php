@@ -26,6 +26,10 @@ use TYPO3\CMS\Core\Configuration\SiteConfiguration;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
+use TYPO3\CMS\backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
@@ -75,12 +79,7 @@ class ClearCachePostProc
     public function __construct()
     {
         /* Retrieve extension configuration */
-        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-        if (!$this->cloudFrontConfiguration) {
-            $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-            $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
-        }
-
+        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $this->init();
     }
 
@@ -130,7 +129,7 @@ class ClearCachePostProc
 
             /* if it's a page we enqueue the parent */
             $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig =  \TYPO3\CMS\backend\Utility\BackendUtility::getPagesTSconfig($parentId);
+            $tsConfig =  BackendUtility::getPagesTSconfig($parentId);
 
             //get the distributionId for the root page, null means all (defined in extconf)
             $distributionIds = null;
@@ -197,7 +196,7 @@ class ClearCachePostProc
      *
      * @return void
      * @throws \Doctrine\DBAL\Driver\Exception
-     * @throws \TYPO3\CMS\Core\Exception\SiteNotFoundException
+     * @throws SiteNotFoundException
      */
     protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
     {
@@ -256,13 +255,13 @@ class ClearCachePostProc
      * @param $linkArguments
      *
      * @return array|false|int|string|null
-     * @throws \TYPO3\CMS\Core\Exception\SiteNotFoundException
+     * @throws SiteNotFoundException
      */
     protected function buildLink($pageUid, $linkArguments = array())
     {
         //some record saving function might raise a tsfe inialisation error
         try {
-            $site = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Site\SiteFinder::class)->getSiteByPageId($pageUid);
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageUid);
             $url = (string)$site->getRouter()->generateUri((string)$pageUid, $linkArguments);
             $url = parse_url($url, PHP_URL_PATH);
         } catch (\TypeError $e) {
@@ -309,7 +308,7 @@ class ClearCachePostProc
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
                 $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
                 try {
                     $result = $cloudFront->createInvalidation([
