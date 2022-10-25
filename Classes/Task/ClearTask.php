@@ -2,31 +2,59 @@
 
 namespace Toumoro\TmCloudfront\Task;
 
-class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
 
+/***
+ *
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ *  (c) 2022 Toumoro
+ *
+ ***/
+
+
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Scheduler\Task\AbstractTask;
+use Doctrine\DBAL\Driver\Exception;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
+
+
+class ClearTask extends AbstractTask {
+
+    /**
+     * @return bool
+     * @throws Exception
+     * @throws \Doctrine\DBAL\Exception
+     * @throws ExtensionConfigurationExtensionNotConfiguredException
+     * @throws ExtensionConfigurationPathDoesNotExistException
+     */
     public function execute() {
-        
-        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-
-        if (!$this->cloudFrontConfiguration) {
-                $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-                $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
-        }
-
+        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
         $distributionIds = explode(',',$distributionIds);
         
         foreach ($distributionIds as $key => $distId) {
-
-
             //clean duplicate values
-            $GLOBALS['TYPO3_DB']->sql_query("delete inv from tx_tmcloudfront_domain_model_invalidation inv inner join tx_tmcloudfront_domain_model_invalidation jt on inv.pathsegment = jt.pathsegment and inv.distributionId = jt.distributionId and jt.uid > inv.uid");
+            GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
+                ->prepare("delete inv from tx_tmcloudfront_domain_model_invalidation inv inner join tx_tmcloudfront_domain_model_invalidation jt on inv.pathsegment = jt.pathsegment and inv.distributionId = jt.distributionId and jt.uid > inv.uid")
+                ->executeStatement();
 
-            list($row) = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('COUNT(*) AS t', 'tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'");
-            $count = $row['t'];
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+            $count = $queryBuilder
+                ->count('uid')
+                ->from('tx_tmcloudfront_domain_model_invalidation')
+                ->where(
+                    $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
+                )
+                ->execute()
+                ->fetchOne();
     
             if ($count > 0) {
-    
                 $options = [
                     'version' => $this->cloudFrontConfiguration['version'],
                     'region' => $this->cloudFrontConfiguration['region'],
@@ -35,7 +63,7 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                         'secret' => $this->cloudFrontConfiguration['apisecret'],
                     ]
                 ];
-                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
     
                 $list = $cloudFront->listInvalidations([
                     'DistributionId' => $distId,
@@ -54,7 +82,16 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                 }
       
                 if ($availableInvalidations > 0) {
-                    $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation', "distributionId = '".$distId."'", '', '', $availableInvalidations);
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                    $rows = $queryBuilder
+                        ->select('*')
+                        ->from('tx_tmcloudfront_domain_model_invalidation')
+                        ->setMaxResults($availableInvalidations)
+                        ->where(
+                            $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
+                        )
+                        ->execute()
+                        ->fetchAllAssociative();
 
                     foreach ($rows as $k => $value) {
                         
@@ -69,8 +106,14 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
                                 ]
                             ]
                         ]);
-    
-                        $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', 'uid = ' . $value['uid']);
+
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                        $affectedRows = $queryBuilder
+                            ->delete('tx_tmcloudfront_domain_model_invalidation')
+                            ->where(
+                                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($value['uid']))
+                            )
+                            ->execute();
                     }
                 }
             }
@@ -92,5 +135,4 @@ class ClearTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask {
         }
         return $randomString;
     }
-
 }

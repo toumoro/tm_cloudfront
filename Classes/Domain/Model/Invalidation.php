@@ -1,6 +1,6 @@
 <?php
-namespace Toumoro\TmCloudfront\Domain\Model;
 
+namespace Toumoro\TmCloudfront\Domain\Model;
 /***
  *
  * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
@@ -11,11 +11,11 @@ namespace Toumoro\TmCloudfront\Domain\Model;
  *  (c) 2018 Simon Ouellet, Toumoro
  *
  ***/
-
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
 /**
  * Invalidation
  */
-class Invalidation extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class Invalidation extends AbstractEntity
 {
     /**
      * pathsegment
