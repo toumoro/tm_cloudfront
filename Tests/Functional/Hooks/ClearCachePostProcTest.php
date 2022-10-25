@@ -10,6 +10,7 @@ namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Scheduler\Task\AbstractTask;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -25,7 +26,7 @@ class ClearCachePostProcTest extends  FunctionalTestCase
     /**
      * @var array Have styleguide loaded
      */
-    protected $testExtensionsToLoad = [
+    protected array $testExtensionsToLoad = [
         'typo3conf/ext/typo3db_legacy',
         'typo3conf/ext/tm_cloudfront',
     ];
@@ -103,7 +104,7 @@ class ClearCachePostProcTest extends  FunctionalTestCase
         );
 
 
-        $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('*', 'tx_tmcloudfront_domain_model_invalidation',"pathsegment in ('/en/sub*','/dk/subtest*')");
+        $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('uid', 'tx_tmcloudfront_domain_model_invalidation',"pathsegment in ('/en/sub*','/dk/subtest*')");
         $this->assertEquals(count($rows),2);
           
     }
