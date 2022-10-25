@@ -7,26 +7,70 @@
 
 namespace Toumoro\TmCloudfront\Hooks;
 
+/***
+ *
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ *  (c) 2022 Toumoro
+ *
+ ***/
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Configuration\SiteConfiguration;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
+use TYPO3\CMS\backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 class ClearCachePostProc
 {
-
+    /**
+     * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager
+     */
     protected $configurationManager;
+
     protected $objectManager;
+
+    /**
+     * @var ContentObjectRenderer
+     */
     protected $contentObjectRenderer;
+
+    /**
+     * @var UriBuilder|mixed|object
+     */
     protected $uriBuilder;
-    protected $queue = array();
-    protected $cloudFrontConfiguration = array();
+
+    /**
+     * @var array
+     */
+    protected $queue = [];
+
+    /**
+     * @var array
+     */
+    protected $cloudFrontConfiguration = [];
+
+    /**
+     * Inject UriBuilder
+     * @param UriBuilder $uriBuilder
+     */
+    public function injectUriBuilder(UriBuilder $uriBuilder)
+    {
+        $this->uriBuilder = $uriBuilder;
+    }
 
     /**
      * Constructs this object.
@@ -34,20 +78,16 @@ class ClearCachePostProc
      */
     public function __construct()
     {
-
         /* Retrieve extension configuration */
-        $this->cloudFrontConfiguration = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront'];
-        if (!$this->cloudFrontConfiguration) {
-            $this->cloudFrontConfiguration = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['tm_cloudfront']);
-            $this->cloudFrontConfiguration = $this->cloudFrontConfiguration['cloudfront.'];
-        }
-
+        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $this->init();
     }
 
+    /**
+     * @return void
+     */
     public function getCfDistributionIds()
     {
-
         $this->init();
     }
 
@@ -56,9 +96,7 @@ class ClearCachePostProc
      * @return void
      */
     protected function init()
-    {
-        /* init tsfe */
-    }
+    {/* init tsfe */}
 
     /**
      * Clear cache post processor.
@@ -71,7 +109,6 @@ class ClearCachePostProc
      */
     public function clearCachePostProc(&$params, &$pObj)
     {
-
         $pathToClear = array();
         $pageUids = array();
 
@@ -92,15 +129,13 @@ class ClearCachePostProc
 
             /* if it's a page we enqueue the parent */
             $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig =  \TYPO3\CMS\backend\Utility\BackendUtility::getPagesTSconfig($parentId);
+            $tsConfig =  BackendUtility::getPagesTSconfig($parentId);
 
             //get the distributionId for the root page, null means all (defined in extconf)
             $distributionIds = null;
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
             }
-            
-
 
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
@@ -147,14 +182,21 @@ class ClearCachePostProc
     }
 
     /**
+     *
      * Enqueue cache entries in $this->queue
      * A cache entry will be added to the queue for each language of the website.
      * For exemple:
-     * If you clear the contact page, /contact/, /en/contact and 
+     * If you clear the contact page, /contact/, /en/contact and
      * /fr/contact will be cleared depending on your speaking url configuration.
-     * 
+     *
+     *
      * @param int $pageId entry to clear. 0 means all cache "/"
      * @param bool $recursive recursive entry clearing
+     * @param $distributionIds
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws SiteNotFoundException
      */
     protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
     {
@@ -168,16 +210,17 @@ class ClearCachePostProc
             $entry = $pageId;
         }
 
-
         if ($distributionIds === null) {
             $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
         }
 
-
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
-            /* language handling */
-            $databaseConnection = $this->getDatabaseConnection();
-            $languages = $databaseConnection->exec_SELECTgetRows('uid', 'sys_language', 'hidden=0');
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_language');
+            $languages = $queryBuilder
+                ->select('uid')
+                ->from('sys_language')
+                ->execute()
+                ->fetchAllAssociative();
 
             if (count($languages) > 0) {
                 $this->enqueue($this->buildLink($entry, array('L' => 0)) . $wildcard, $distributionIds);
@@ -190,14 +233,11 @@ class ClearCachePostProc
         } else {
             $this->enqueue($entry . $wildcard, $distributionIds);
         }
-        //debug($this->queue);exit;
     }
 
     protected function enqueue($link, $distributionIds)
     {
         $distArray = explode(',', $distributionIds);
-
-
         // for index.php link style
         if (substr($link, 0, 1) != '/') {
             $link = '/' . $link;
@@ -209,15 +249,19 @@ class ClearCachePostProc
     }
 
     /**
-     *  Speaking url link generation
-     *  @return string
+     * Speaking url link generation
+     *
+     * @param $pageUid
+     * @param $linkArguments
+     *
+     * @return array|false|int|string|null
+     * @throws SiteNotFoundException
      */
     protected function buildLink($pageUid, $linkArguments = array())
     {
-
         //some record saving function might raise a tsfe inialisation error
         try {
-            $site = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Site\SiteFinder::class)->getSiteByPageId($pageUid);
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageUid);
             $url = (string)$site->getRouter()->generateUri((string)$pageUid, $linkArguments);
             $url = parse_url($url, PHP_URL_PATH);
         } catch (\TypeError $e) {
@@ -231,16 +275,15 @@ class ClearCachePostProc
 
     /**
      * This function sends a Cloudfront invalidate query based on the cache queue ($this->queue).
+     *
      * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     protected function clearCache()
     {
-
         foreach ($this->queue as $distId => $paths) {
-
             $paths = array_unique($paths);
-
-
             $caller = $this->generateRandomString(16);
             $options = [
                 'version' => $this->cloudFrontConfiguration['version'],
@@ -255,13 +298,18 @@ class ClearCachePostProc
             $force = false;
             if (array_search('/*', $paths) !== false) {
                 $paths = array('/*');
-                $GLOBALS['TYPO3_DB']->exec_DELETEquery('tx_tmcloudfront_domain_model_invalidation', "distributionId = '" . $distId . "'");
+                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                $affectedRows = $queryBuilder
+                    ->delete('tx_tmcloudfront_domain_model_invalidation')
+                    ->where(
+                        $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
+                    )
+                    ->execute();
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-                $cloudFront = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
                 $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
-
                 try {
                     $result = $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
@@ -280,21 +328,14 @@ class ClearCachePostProc
                     $data = [
                         'pathsegment' => $value,
                         'distributionId' => $distId,
+                        'id' => md5($value.$distId),
                     ];
-                    $GLOBALS['TYPO3_DB']->exec_INSERTquery('tx_tmcloudfront_domain_model_invalidation', $data);
+                    GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
+                        ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
+                        ->executeStatement($data);
                 }
             }
         }
-    }
-
-    /**
-     * Get database connection
-     *
-     * @return DatabaseConnection
-     */
-    protected function getDatabaseConnection()
-    {
-        return $GLOBALS['TYPO3_DB'];
     }
 
     /**
@@ -313,6 +354,13 @@ class ClearCachePostProc
         return $randomString;
     }
 
+    /**
+     * @param $file
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
+     */
     public function fileMod($file)
     {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
