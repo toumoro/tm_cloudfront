@@ -49,7 +49,7 @@
 
     "extra": {
         "branch-alias": {
-            "dev-master": "testing-dev"
+            "dev-master": "11.x-dev"
         },
         "typo3/cms": {
             "cms-package-dir": "{$vendor-dir}/typo3/cms",
