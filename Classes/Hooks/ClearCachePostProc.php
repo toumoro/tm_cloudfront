@@ -221,7 +221,7 @@ class ClearCachePostProc
                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
                    if($lang->getLanguageId() != 0) {
-                       $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $      wildcard, $distributionIds);                                                            
+                       $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);                                                            
                    }                                                                   
                }
             } else {
