@@ -215,7 +215,7 @@ class ClearCachePostProc
         }
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
-             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguag      es();
+             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
     
             if (count($languages) > 0) {
                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
