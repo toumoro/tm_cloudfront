@@ -133,7 +133,7 @@ class ClearTask extends AbstractTask
                 )
                 ->execute();
         } catch (\Exception $e) {
-            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . '). Now iterating one by one',"tm_cloudfront");
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
             if (count($chunk) > 1) {
                 $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'Now iterating one by one (' . $distId . ')',"tm_cloudfront");
                 foreach (array_chunk($chunk, 1) as $atomic_chunk) {
