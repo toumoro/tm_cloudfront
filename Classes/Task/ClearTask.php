@@ -24,7 +24,8 @@ use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotCon
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
 
 
-class ClearTask extends AbstractTask {
+class ClearTask extends AbstractTask
+{
 
     /**
      * @return bool
@@ -33,7 +34,8 @@ class ClearTask extends AbstractTask {
      * @throws ExtensionConfigurationExtensionNotConfiguredException
      * @throws ExtensionConfigurationPathDoesNotExistException
      */
-    public function execute() {
+    public function execute()
+    {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $distributionIds = $this->getDistributionIds();
         foreach ($distributionIds as $key => $distId) {
@@ -51,7 +53,7 @@ class ClearTask extends AbstractTask {
                 )
                 ->execute()
                 ->fetchOne();
-    
+
             if ($count > 0) {
                 $options = [
                     'version' => $this->cloudFrontConfiguration['version'],
@@ -62,12 +64,12 @@ class ClearTask extends AbstractTask {
                     ]
                 ];
                 $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-    
+
                 $list = $cloudFront->listInvalidations([
                     'DistributionId' => $distId,
                     'MaxItems' => '30',
                 ]);
-    
+
                 /* the max is 15 but we let 5 spot available for manual clear cache in the backend */
                 $availableInvalidations = 10;
                 $items = $list->get('InvalidationList')['Items'];
@@ -78,7 +80,7 @@ class ClearTask extends AbstractTask {
                         }
                     }
                 }
-      
+
                 if ($availableInvalidations > 0) {
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
                     $rows = $queryBuilder
@@ -124,7 +126,8 @@ class ClearTask extends AbstractTask {
      * @param int $length length of the string
      * @return string
      */
-    protected function generateRandomString($length = 10) {
+    protected function generateRandomString($length = 10)
+    {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $charactersLength = strlen($characters);
         $randomString = '';
