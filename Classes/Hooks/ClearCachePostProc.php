@@ -339,18 +339,21 @@ class ClearCachePostProc
     }
 
     /**
-     * @param $file_or_folder
+     * @param File | Folder $file_or_folder
      *
      * @return void
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
-    public function fileMod($file_or_folder)
+    public function fileMod($resource)
     {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
-                if ($file_or_folder->getStorage()->getUid() == $storage) {
-                    $this->enqueue('/' . $file_or_folder->getPublicUrl(), $distributionIds);
+                if ($resource->getStorage()->getUid() == $storage) {
+                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
+                        ? '/*'
+                        : '';
+                    $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
                     $this->clearCache();
                 }
             }
