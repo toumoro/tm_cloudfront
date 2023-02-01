@@ -11,14 +11,6 @@ services:
     tags:
       - name: event.listener
         identifier: 'tm/file_list'
-        method: 'afterFileAdded'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent
-      - name: event.listener
-        identifier: 'tm/file_list'
-        method: 'afterFileCopied'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileCopiedEvent
-      - name: event.listener
-        identifier: 'tm/file_list'
         method: 'afterFileMoved'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent
       - name: event.listener
@@ -31,24 +23,12 @@ services:
         event: TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent
       - name: event.listener
         identifier: 'tm/file_list'
-        method: 'afterFileCreated'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent
-      - name: event.listener
-        identifier: 'tm/file_list'
         method: 'afterFileDeleted'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFileContentsSet'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent
-      - name: event.listener
-        identifier: 'tm/file_list'
-        method: 'afterFolderAdded'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFolderAddedEvent
-      - name: event.listener
-        identifier: 'tm/file_list'
-        method: 'afterFolderCopied'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFolderCopiedEvent
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFolderMoved'

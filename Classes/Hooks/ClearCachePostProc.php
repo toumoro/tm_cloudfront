@@ -18,6 +18,16 @@ namespace Toumoro\TmCloudfront\Hooks;
  *
  ***/
 
+use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent;
+use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -360,25 +370,7 @@ class ClearCachePostProc
         }
     }
 
-    /**
-     * A file has been added.
-     *
-     * @param AfterFileAddedEvent $event
-     */
-    public function afterFileAdded(AfterFileAddedEvent $event): void
-    {
-        $this->fileMod($event->getFolder());
-    }
 
-    /**
-     * A file has been copied.
-     *
-     * @param AfterFileCopiedEvent $event
-     */
-    public function afterFileCopied(AfterFileCopiedEvent $event): void
-    {
-        $this->fileMod($event->getFolder());
-    }
 
     /**
      * A file has been moved.
@@ -387,7 +379,6 @@ class ClearCachePostProc
      */
     public function afterFileMoved(AfterFileMovedEvent $event): void
     {
-        $this->fileMod($event->getFolder());
         $this->fileMod($event->getOriginalFolder());
     }
 
@@ -429,7 +420,7 @@ class ClearCachePostProc
     public function afterFileDeleted(AfterFileDeletedEvent $event): void
     {
         try {
-            $this->fileMod($event->getFile()->getParentFolder());
+            $this->fileMod($event->getFile());
         } catch (\Exception $e) {
             // Exception may happen when a file is moved to /_recycler_/ but the user has no access to it
         }
@@ -445,26 +436,6 @@ class ClearCachePostProc
         $this->fileMod($event->getFile()->getParentFolder());
     }
 
-    /**
-     * A folder has been added.
-     *
-     * @param AfterFolderAddedEvent $event
-     */
-    public function afterFolderAdded(AfterFolderAddedEvent $event): void
-    {
-        $this->fileMod($event->getFolder()->getParentFolder());
-    }
-
-    /**
-     * A folder has been copied.
-     *
-     * @param AfterFolderCopiedEvent $event
-     */
-    public function afterFolderCopied(AfterFolderCopiedEvent $event): void
-    {
-        $this->fileMod($event->getFolder());
-        $this->fileMod($event->getTargetFolder()->getParentFolder());
-    }
 
     /**
      * A folder has been moved.
