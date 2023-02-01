@@ -18,6 +18,16 @@ namespace Toumoro\TmCloudfront\Hooks;
  *
  ***/
 
+use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent;
+use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -79,24 +89,10 @@ class ClearCachePostProc
     public function __construct()
     {
         /* Retrieve extension configuration */
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
-        $this->init();
+        $this->cloudFrontConfiguration =
+            GeneralUtility::makeInstance(ExtensionConfiguration::class)
+                ->get('tm_cloudfront')['cloudfront'];
     }
-
-    /**
-     * @return void
-     */
-    public function getCfDistributionIds()
-    {
-        $this->init();
-    }
-
-    /**
-     * Initialize tsfe for speaking url link creation
-     * @return void
-     */
-    protected function init()
-    {/* init tsfe */}
 
     /**
      * Clear cache post processor.
@@ -142,7 +138,7 @@ class ClearCachePostProc
                 $this->queueClearCache($uid_page, false, $distributionIds);
             } else {
 
-                if (!$tsConfig['cearCache_disable']) {
+                if (!$tsConfig['clearCache_disable']) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
@@ -202,7 +198,7 @@ class ClearCachePostProc
     {
         $wildcard = '';
         if ($recursive) {
-            $wildcard = '*';
+            $wildcard = '/*';
         }
         if ($pageId == 0) {
             $entry = '/';
@@ -215,15 +211,15 @@ class ClearCachePostProc
         }
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
-             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-    
+            $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
+
             if (count($languages) > 0) {
-               $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
-                   if($lang->getLanguageId() != 0) {
-                       $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);                                                            
-                   }                                                                   
-               }
+                    if($lang->getLanguageId() != 0) {
+                        $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                    }
+                }
             } else {
                 $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
@@ -234,6 +230,7 @@ class ClearCachePostProc
 
     protected function enqueue($link, $distributionIds)
     {
+        $link = str_replace('//', '/', $link);
         $distArray = explode(',', $distributionIds);
         // for index.php link style
         if (substr($link, 0, 1) != '/') {
@@ -352,21 +349,125 @@ class ClearCachePostProc
     }
 
     /**
-     * @param $file
+     * @param File | Folder $file_or_folder
      *
      * @return void
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
-    public function fileMod($file)
+    public function fileMod($resource)
     {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
-                if ($file->getStorage()->getUid() == $storage) {
-                    $this->enqueue('/' . $file->getPublicUrl(), $distributionIds);
+                if ($resource->getStorage()->getUid() == $storage) {
+                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
+                        ? '/*'
+                        : '';
+                    $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
                     $this->clearCache();
                 }
             }
         }
     }
+
+
+
+    /**
+     * A file has been moved.
+     *
+     * @param AfterFileMovedEvent $event
+     */
+    public function afterFileMoved(AfterFileMovedEvent $event): void
+    {
+        $this->fileMod($event->getOriginalFolder());
+    }
+
+    /**
+     * A file has been renamed.
+     *
+     * @param AfterFileRenamedEvent $event
+     */
+    public function afterFileRenamed(AfterFileRenamedEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+    /**
+     * A file has been added as a *replacement* of an existing one.
+     *
+     * @param AfterFileReplacedEvent $event
+     */
+    public function afterFileReplaced(AfterFileReplacedEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+    /**
+     * A file has been created.
+     *
+     * @param AfterFileCreatedEvent $event
+     */
+    public function afterFileCreated(AfterFileCreatedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+    }
+
+    /**
+     * A file has been deleted.
+     *
+     * @param AfterFileDeletedEvent $event
+     */
+    public function afterFileDeleted(AfterFileDeletedEvent $event): void
+    {
+        try {
+            $this->fileMod($event->getFile());
+        } catch (\Exception $e) {
+            // Exception may happen when a file is moved to /_recycler_/ but the user has no access to it
+        }
+    }
+
+    /**
+     * Contents of a file has been set.
+     *
+     * @param AfterFileContentsSetEvent $event
+     */
+    public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+
+    /**
+     * A folder has been moved.
+     *
+     * @param AfterFolderMovedEvent $event
+     */
+    public function afterFolderMoved(AfterFolderMovedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getTargetFolder());
+    }
+
+    /**
+     * A folder has been renamed.
+     *
+     * @param AfterFolderRenamedEvent $event
+     */
+    public function afterFolderRenamed(AfterFolderRenamedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getFolder()->getParentFolder());
+    }
+
+    /**
+     * A folder has been deleted.
+     *
+     * @param AfterFolderDeletedEvent $event
+     */
+    public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getFolder()->getParentFolder());
+    }
+
 }
