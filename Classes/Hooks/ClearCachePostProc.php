@@ -292,7 +292,7 @@ class ClearCachePostProc
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
                 $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-                $GLOBALS['BE_USER']->writelog(4,0,0,0,implode(',', $paths). ' ('.$distId.')', "tm_cloudfront");
+                $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
                 try {
                     $result = $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
