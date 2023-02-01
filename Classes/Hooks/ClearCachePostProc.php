@@ -352,21 +352,161 @@ class ClearCachePostProc
     }
 
     /**
-     * @param $file
+     * @param $file_or_folder
      *
      * @return void
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
-    public function fileMod($file)
+    public function fileMod($file_or_folder)
     {
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
-                if ($file->getStorage()->getUid() == $storage) {
-                    $this->enqueue('/' . $file->getPublicUrl(), $distributionIds);
+                if ($file_or_folder->getStorage()->getUid() == $storage) {
+                    $this->enqueue('/' . $file_or_folder->getPublicUrl(), $distributionIds);
                     $this->clearCache();
                 }
             }
         }
     }
+
+    /**
+     * A file has been added.
+     *
+     * @param AfterFileAddedEvent $event
+     */
+    public function afterFileAdded(AfterFileAddedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+    }
+
+    /**
+     * A file has been copied.
+     *
+     * @param AfterFileCopiedEvent $event
+     */
+    public function afterFileCopied(AfterFileCopiedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+    }
+
+    /**
+     * A file has been moved.
+     *
+     * @param AfterFileMovedEvent $event
+     */
+    public function afterFileMoved(AfterFileMovedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getOriginalFolder());
+    }
+
+    /**
+     * A file has been renamed.
+     *
+     * @param AfterFileRenamedEvent $event
+     */
+    public function afterFileRenamed(AfterFileRenamedEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+    /**
+     * A file has been added as a *replacement* of an existing one.
+     *
+     * @param AfterFileReplacedEvent $event
+     */
+    public function afterFileReplaced(AfterFileReplacedEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+    /**
+     * A file has been created.
+     *
+     * @param AfterFileCreatedEvent $event
+     */
+    public function afterFileCreated(AfterFileCreatedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+    }
+
+    /**
+     * A file has been deleted.
+     *
+     * @param AfterFileDeletedEvent $event
+     */
+    public function afterFileDeleted(AfterFileDeletedEvent $event): void
+    {
+        try {
+            $this->fileMod($event->getFile()->getParentFolder());
+        } catch (\Exception $e) {
+            // Exception may happen when a file is moved to /_recycler_/ but the user has no access to it
+        }
+    }
+
+    /**
+     * Contents of a file has been set.
+     *
+     * @param AfterFileContentsSetEvent $event
+     */
+    public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
+    {
+        $this->fileMod($event->getFile()->getParentFolder());
+    }
+
+    /**
+     * A folder has been added.
+     *
+     * @param AfterFolderAddedEvent $event
+     */
+    public function afterFolderAdded(AfterFolderAddedEvent $event): void
+    {
+        $this->fileMod($event->getFolder()->getParentFolder());
+    }
+
+    /**
+     * A folder has been copied.
+     *
+     * @param AfterFolderCopiedEvent $event
+     */
+    public function afterFolderCopied(AfterFolderCopiedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getTargetFolder()->getParentFolder());
+    }
+
+    /**
+     * A folder has been moved.
+     *
+     * @param AfterFolderMovedEvent $event
+     */
+    public function afterFolderMoved(AfterFolderMovedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getTargetFolder());
+    }
+
+    /**
+     * A folder has been renamed.
+     *
+     * @param AfterFolderRenamedEvent $event
+     */
+    public function afterFolderRenamed(AfterFolderRenamedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getFolder()->getParentFolder());
+    }
+
+    /**
+     * A folder has been deleted.
+     *
+     * @param AfterFolderDeletedEvent $event
+     */
+    public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
+    {
+        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getFolder()->getParentFolder());
+    }
+
 }
