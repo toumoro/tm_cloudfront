@@ -93,41 +93,55 @@ class ClearTask extends AbstractTask
                         ->execute()
                         ->fetchAllAssociative();
 
-                    foreach (array_chunk($rows, $availableInvalidations) as $k => $chunk) {
-                        $pathsegments = [];
-                        foreach ($chunk as $value) {
-                            $pathsegments[] = $value['pathsegment'] ?? 'undefined? ';
-                        }
-                        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
-                        try {
-                            $result = $cloudFront->createInvalidation([
-                                'DistributionId' => $distId, // REQUIRED
-                                'InvalidationBatch' => [// REQUIRED
-                                    'CallerReference' => $this->generateRandomString(16), // REQUIRED
-                                    'Paths' => [// REQUIRED
-                                        'Items' => $pathsegments,
-                                        // items or paths to invalidate
-                                        'Quantity' => count($pathsegments),
-                                        // REQUIRED (must be equal to the number of 'Items' in the previus line)
-                                    ]
-                                ]
-                            ]);
-
-                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                            $affectedRows = $queryBuilder
-                                ->delete('tx_tmcloudfront_domain_model_invalidation')
-                                ->where(
-                                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($value['uid']))
-                                )
-                                ->execute();
-                        } catch (\Exception $e) {
-                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
-                        }
+                    foreach (array_chunk($rows, $availableInvalidations) as $chunk) {
+                        $this->cc($chunk, $cloudFront, $distId);
                     }
                 }
             }
         }
         return true;
+    }
+
+    protected function cc($chunk,$cloudFront,$distId)
+    {
+        $pathsegments = [];
+        $ids = [];
+        foreach ($chunk as $value) {
+            $pathsegments[] = $value['pathsegment'] ?? 'undefined? ';
+            $ids[] = $value['uid'] ?? '-1 ';
+        }
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
+        try {
+            $result = $cloudFront->createInvalidation([
+                'DistributionId' => $distId, // REQUIRED
+                'InvalidationBatch' => [// REQUIRED
+                    'CallerReference' => $this->generateRandomString(16), // REQUIRED
+                    'Paths' => [// REQUIRED
+                        'Items' => $pathsegments,
+                        // items or paths to invalidate
+                        'Quantity' => count($pathsegments),
+                        // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                    ]
+                ]
+            ]);
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+            $affectedRows = $queryBuilder
+                ->delete('tx_tmcloudfront_domain_model_invalidation')
+                ->where(
+                    $queryBuilder->expr()->in('uid', $ids)
+                )
+                ->execute();
+        } catch (\Exception $e) {
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . '). Now iterating one by one',"tm_cloudfront");
+            if (count($chunk) > 1) {
+                $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'Now iterating one by one (' . $distId . ')',"tm_cloudfront");
+                foreach (array_chunk($chunk, 1) as $atomic_chunk) {
+                    $this->cc($atomic_chunk, $cloudFront, $distId);
+                }
+            }
+
+        }
     }
 
     /**
