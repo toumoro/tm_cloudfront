@@ -201,15 +201,15 @@ class ClearCachePostProc
         }
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
-             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-    
+            $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
+
             if (count($languages) > 0) {
-               $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
-                   if($lang->getLanguageId() != 0) {
-                       $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);                                                            
-                   }                                                                   
-               }
+                    if($lang->getLanguageId() != 0) {
+                        $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                    }
+                }
             } else {
                 $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
