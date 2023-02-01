@@ -35,9 +35,7 @@ class ClearTask extends AbstractTask {
      */
     public function execute() {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
-        $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
-        $distributionIds = explode(',',$distributionIds);
-        
+        $distributionIds = $this->getDistributionIds();
         foreach ($distributionIds as $key => $distId) {
             //clean duplicate values
             GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
@@ -135,4 +133,26 @@ class ClearTask extends AbstractTask {
         }
         return $randomString;
     }
+
+    protected function getDistributionIds()
+    {
+        $pagesDistributionIds =
+            $this->cloudFrontConfiguration['distributionIds'] ?? [];
+        $distributionIds =
+            is_array($pagesDistributionIds)
+                ? $pagesDistributionIds
+                : explode(',', $pagesDistributionIds);
+        foreach ($this->cloudFrontConfiguration['fileStorage'] ?? [] as $fileStorageDistributionId) {
+            $distributionIds =
+                array_merge(
+                    $distributionIds,
+                    is_array($fileStorageDistributionId)
+                        ? $fileStorageDistributionId
+                        : explode(',', $fileStorageDistributionId)
+                );
+        }
+        return $distributionIds;
+
+    }
+
 }
