@@ -142,7 +142,7 @@ class ClearCachePostProc
                 $this->queueClearCache($uid_page, false, $distributionIds);
             } else {
 
-                if (!$tsConfig['cearCache_disable']) {
+                if (!$tsConfig['clearCache_disable']) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
