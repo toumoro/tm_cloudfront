@@ -220,6 +220,7 @@ class ClearCachePostProc
 
     protected function enqueue($link, $distributionIds)
     {
+        $link = str_replace('//', '/', $link);
         $distArray = explode(',', $distributionIds);
         // for index.php link style
         if (substr($link, 0, 1) != '/') {
