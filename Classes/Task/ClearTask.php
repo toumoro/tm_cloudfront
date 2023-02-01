@@ -93,27 +93,36 @@ class ClearTask extends AbstractTask
                         ->execute()
                         ->fetchAllAssociative();
 
-                    foreach ($rows as $k => $value) {
-                        
-                        $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
-                        $result = $cloudFront->createInvalidation([
-                            'DistributionId' => $distId, // REQUIRED
-                            'InvalidationBatch' => [// REQUIRED
-                                'CallerReference' => $this->generateRandomString(16), // REQUIRED
-                                'Paths' => [// REQUIRED
-                                    'Items' => array($value['pathsegment']), // items or paths to invalidate
-                                    'Quantity' => 1, // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                    foreach (array_chunk($rows, $availableInvalidations) as $k => $chunk) {
+                        $pathsegments = [];
+                        foreach ($chunk as $value) {
+                            $pathsegments[] = $value['pathsegment'] ?? 'undefined? ';
+                        }
+                        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
+                        try {
+                            $result = $cloudFront->createInvalidation([
+                                'DistributionId' => $distId, // REQUIRED
+                                'InvalidationBatch' => [// REQUIRED
+                                    'CallerReference' => $this->generateRandomString(16), // REQUIRED
+                                    'Paths' => [// REQUIRED
+                                        'Items' => $pathsegments,
+                                        // items or paths to invalidate
+                                        'Quantity' => count($pathsegments),
+                                        // REQUIRED (must be equal to the number of 'Items' in the previus line)
+                                    ]
                                 ]
-                            ]
-                        ]);
+                            ]);
 
-                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                        $affectedRows = $queryBuilder
-                            ->delete('tx_tmcloudfront_domain_model_invalidation')
-                            ->where(
-                                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($value['uid']))
-                            )
-                            ->execute();
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                            $affectedRows = $queryBuilder
+                                ->delete('tx_tmcloudfront_domain_model_invalidation')
+                                ->where(
+                                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($value['uid']))
+                                )
+                                ->execute();
+                        } catch (\Exception $e) {
+                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
+                        }
                     }
                 }
             }
