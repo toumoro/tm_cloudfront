@@ -79,24 +79,10 @@ class ClearCachePostProc
     public function __construct()
     {
         /* Retrieve extension configuration */
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
-        $this->init();
+        $this->cloudFrontConfiguration =
+            GeneralUtility::makeInstance(ExtensionConfiguration::class)
+                ->get('tm_cloudfront')['cloudfront'];
     }
-
-    /**
-     * @return void
-     */
-    public function getCfDistributionIds()
-    {
-        $this->init();
-    }
-
-    /**
-     * Initialize tsfe for speaking url link creation
-     * @return void
-     */
-    protected function init()
-    {/* init tsfe */}
 
     /**
      * Clear cache post processor.
