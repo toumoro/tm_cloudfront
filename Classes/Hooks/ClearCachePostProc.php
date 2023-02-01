@@ -188,7 +188,7 @@ class ClearCachePostProc
     {
         $wildcard = '';
         if ($recursive) {
-            $wildcard = '*';
+            $wildcard = '/*';
         }
         if ($pageId == 0) {
             $entry = '/';
