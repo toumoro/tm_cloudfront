@@ -102,7 +102,7 @@ class ClearTask extends AbstractTask
         return true;
     }
 
-    protected function cc($chunk,$cloudFront,$distId)
+    protected function cc($chunk,$cloudFront,$distId, $flushDb = true)
     {
         $pathsegments = [];
         $ids = [];
@@ -124,24 +124,25 @@ class ClearTask extends AbstractTask
                     ]
                 ]
             ]);
-
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-            $affectedRows = $queryBuilder
-                ->delete('tx_tmcloudfront_domain_model_invalidation')
-                ->where(
-                    $queryBuilder->expr()->in('uid', $ids)
-                )
-                ->execute();
         } catch (\Exception $e) {
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
             if (count($chunk) > 1) {
                 $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'Now iterating one by one (' . $distId . ')',"tm_cloudfront");
                 foreach (array_chunk($chunk, 1) as $atomic_chunk) {
-                    $this->cc($atomic_chunk, $cloudFront, $distId);
+                    $this->cc($atomic_chunk, $cloudFront, $distId, false);
                 }
             }
-
         }
+        if (!$flushDb) {
+            return;
+        }
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+        $affectedRows = $queryBuilder
+            ->delete('tx_tmcloudfront_domain_model_invalidation')
+            ->where(
+                $queryBuilder->expr()->in('uid', $ids)
+            )
+            ->execute();
     }
 
     /**
