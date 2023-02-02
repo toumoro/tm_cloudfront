@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent;
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -360,7 +361,7 @@ class ClearCachePostProc
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
                 if ($resource->getStorage()->getUid() == $storage) {
-                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
+                    $wildcard = $resource instanceof FolderInterface
                         ? '/*'
                         : '';
                     $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
@@ -399,7 +400,7 @@ class ClearCachePostProc
      */
     public function afterFileReplaced(AfterFileReplacedEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
+        $this->fileMod($event->getFile());
     }
 
     /**
