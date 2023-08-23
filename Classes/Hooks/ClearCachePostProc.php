@@ -139,7 +139,7 @@ class ClearCachePostProc
                 $this->queueClearCache($uid_page, false, $distributionIds);
             } else {
 
-                if (!$tsConfig['clearCache_disable']) {
+                if (!($tsConfig['clearCache_disable'] ?? false)) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
@@ -150,7 +150,7 @@ class ClearCachePostProc
                     }
                 }
                 // Clear cache for pages entered in TSconfig:
-                if ($tsConfig['clearCacheCmd']) {
+                if ($tsConfig['clearCacheCmd'] ?? false) {
                     $Commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), TRUE);
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
