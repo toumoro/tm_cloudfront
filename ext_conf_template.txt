@@ -1,10 +1,10 @@
 cloudfront {
    # cat=basic/enable; type=string; label=CloudFront API key
-   apikey =
+   apikey = 
    # cat=basic/enable; type=string; label=CloudFront API key secret
-   apisecret =
+   apisecret = 
    # cat=basic/enable; type=string; label=Distribution Id comma seperated
-   distributionIds =
+   distributionIds = 
    # cat=basic/enable; type=string; label=Region
    region = us-east-1
    # cat=basic/enable; type=string; label=Version

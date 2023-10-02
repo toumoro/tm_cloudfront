@@ -13,8 +13,7 @@ namespace Toumoro\TmCloudfront\Task;
  *  (c) 2022 Toumoro
  *
  ***/
-
-
+use Aws\CloudFront\CloudFrontClient;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Scheduler\Task\AbstractTask;
@@ -47,11 +46,7 @@ class ClearTask extends AbstractTask
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
             $count = $queryBuilder
                 ->count('uid')
-                ->from('tx_tmcloudfront_domain_model_invalidation')
-                ->where(
-                    $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                )
-                ->execute()
+                ->from('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId)))->executeQuery()
                 ->fetchOne();
 
             if ($count > 0) {
@@ -63,7 +58,7 @@ class ClearTask extends AbstractTask
                         'secret' => $this->cloudFrontConfiguration['apisecret'],
                     ]
                 ];
-                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance(CloudFrontClient::class, $options);
 
                 $list = $cloudFront->listInvalidations([
                     'DistributionId' => $distId,
@@ -86,11 +81,7 @@ class ClearTask extends AbstractTask
                     $rows = $queryBuilder
                         ->select('*')
                         ->from('tx_tmcloudfront_domain_model_invalidation')
-                        ->setMaxResults($availableInvalidations)
-                        ->where(
-                            $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                        )
-                        ->execute()
+                        ->setMaxResults($availableInvalidations)->where($queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId)))->executeQuery()
                         ->fetchAllAssociative();
 
                     foreach (array_chunk($rows, $availableInvalidations) as $chunk) {
@@ -138,11 +129,7 @@ class ClearTask extends AbstractTask
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
         $affectedRows = $queryBuilder
-            ->delete('tx_tmcloudfront_domain_model_invalidation')
-            ->where(
-                $queryBuilder->expr()->in('uid', $ids)
-            )
-            ->execute();
+            ->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->in('uid', $ids))->executeStatement();
     }
 
     /**

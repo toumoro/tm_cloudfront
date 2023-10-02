@@ -17,7 +17,7 @@ namespace Toumoro\TmCloudfront\Hooks;
  *  (c) 2022 Toumoro
  *
  ***/
-
+use Aws\CloudFront\CloudFrontClient;
 use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
@@ -295,15 +295,11 @@ class ClearCachePostProc
                 $paths = array('/*');
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
                 $affectedRows = $queryBuilder
-                    ->delete('tx_tmcloudfront_domain_model_invalidation')
-                    ->where(
-                        $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                    )
-                    ->execute();
+                    ->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId)))->executeStatement();
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance(CloudFrontClient::class, $options);
                 $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
                 try {
                     $result = $cloudFront->createInvalidation([
