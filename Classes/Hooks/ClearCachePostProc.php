@@ -323,7 +323,7 @@ class ClearCachePostProc
                     ];
                     GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
                         ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
-                        ->executeStatement($data);
+                        ->executeStatement(array_values($data));
                 }
             }
         }
