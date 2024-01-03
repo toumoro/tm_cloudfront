@@ -22,7 +22,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
 
-
 class ClearTask extends AbstractTask
 {
 
@@ -37,6 +36,7 @@ class ClearTask extends AbstractTask
     {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $distributionIds = $this->getDistributionIds();
+
         foreach ($distributionIds as $key => $distId) {
             //clean duplicate values
             GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
@@ -101,6 +101,7 @@ class ClearTask extends AbstractTask
             $pathsegments[] = $value['pathsegment'] ?? 'undefined? ';
             $ids[] = $value['uid'] ?? '-1 ';
         }
+
         $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
         try {
             $result = $cloudFront->createInvalidation([
@@ -124,12 +125,12 @@ class ClearTask extends AbstractTask
                 }
             }
         }
+
         if (!$flushDb) {
             return;
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-        $affectedRows = $queryBuilder
-            ->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->in('uid', $ids))->executeStatement();
+        $queryBuilder->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->in('uid', $ids))->executeStatement();
     }
 
     /**
