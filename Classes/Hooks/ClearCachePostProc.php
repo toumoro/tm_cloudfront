@@ -2,6 +2,7 @@
 
 /**
  * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
+ *
  * @author Simon Ouellet
  */
 
@@ -18,6 +19,7 @@ namespace Toumoro\TmCloudfront\Hooks;
  *
  ***/
 
+use Aws\CloudFront\CloudFrontClient;
 use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
@@ -28,53 +30,45 @@ use TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent;
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
-use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Configuration\SiteConfiguration;
-use TYPO3\CMS\Core\Utility\HttpUtility;
-use TYPO3\CMS\Core\SingletonInterface;
-use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
+use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
+
 
 class ClearCachePostProc
 {
     /**
-     * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager
-     */
-    protected $configurationManager;
-
-    protected $objectManager;
-
-    /**
      * @var ContentObjectRenderer
      */
-    protected $contentObjectRenderer;
+    protected ContentObjectRenderer $contentObjectRenderer;
 
     /**
      * @var UriBuilder|mixed|object
      */
-    protected $uriBuilder;
+    protected UriBuilder $uriBuilder;
 
     /**
      * @var array
      */
-    protected $queue = [];
+    protected array $queue = [];
 
     /**
      * @var array
      */
-    protected $cloudFrontConfiguration = [];
+    protected array $cloudFrontConfiguration = [];
 
     /**
      * Inject UriBuilder
+     *
      * @param UriBuilder $uriBuilder
      */
     public function injectUriBuilder(UriBuilder $uriBuilder)
@@ -84,7 +78,13 @@ class ClearCachePostProc
 
     /**
      * Constructs this object.
+     *
      * @return void
+     */
+
+    /**
+     * @throws ExtensionConfigurationExtensionNotConfiguredException
+     * @throws ExtensionConfigurationPathDoesNotExistException
      */
     public function __construct()
     {
@@ -95,19 +95,20 @@ class ClearCachePostProc
     }
 
     /**
-     * Clear cache post processor.
-     * The same structure as DataHandler::clear_cache
      *
-     * @param    array       $params : parameter array
-     * @param    DataHandler $pObj   : partent object
+     *  Clear cache post processor.
+     *  The same structure as DataHandler::clear_cache
      *
-     * @return    void
+     * @param $params
+     * @param $pObj
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
+     * @throws \TYPO3\CMS\Core\Exception\SiteNotFoundException
      */
     public function clearCachePostProc(&$params, &$pObj)
     {
-        $pathToClear = array();
-        $pageUids = array();
-
         if ($pObj->BE_USER->workspace > 0) {
             // Do nothing when editor is inside a workspace
             return;
@@ -119,13 +120,12 @@ class ClearCachePostProc
         } else {
 
             /* When a record is saved */
-            $uid = intval($params['uid']);
             $table = strval($params['table']);
             $uid_page = intval($params['uid_page']);
 
             /* if it's a page we enqueue the parent */
             $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig =  BackendUtility::getPagesTSconfig($parentId);
+            $tsConfig = BackendUtility::getPagesTSconfig($parentId);
 
             //get the distributionId for the root page, null means all (defined in extconf)
             $distributionIds = null;
@@ -138,7 +138,7 @@ class ClearCachePostProc
                 $this->queueClearCache($uid_page, false, $distributionIds);
             } else {
 
-                if (!$tsConfig['clearCache_disable']) {
+                if (!($tsConfig['clearCache_disable'] ?? false)) {
 
                     if (is_numeric($parentId)) {
                         $parentId = intval($parentId);
@@ -149,11 +149,11 @@ class ClearCachePostProc
                     }
                 }
                 // Clear cache for pages entered in TSconfig:
-                if ($tsConfig['clearCacheCmd']) {
+                if ($tsConfig['clearCacheCmd'] ?? false) {
                     $Commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), TRUE);
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
-                        $cmd = array('cacheCmd' => $cmdPart);
+                        $cmd = ['cacheCmd' => $cmdPart];
                         $this->cacheCmd($cmd, $distributionIds);
                     }
                 }
@@ -163,12 +163,17 @@ class ClearCachePostProc
     }
 
     /**
+     *
      * This function handles the cache clearing buttons and clearCacheCmd tsconfig
+     *
      * @param array $params
      * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
+     *
      * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \TYPO3\CMS\Core\Exception\SiteNotFoundException
      */
-    protected function cacheCmd($params, $distributionIds = null)
+    protected function cacheCmd(array $params, array $distributionIds = null)
     {
         if (($params['cacheCmd'] == "all") || ($params['cacheCmd'] == "pages")) {
             $this->queueClearCache(0, true, $distributionIds);
@@ -186,15 +191,15 @@ class ClearCachePostProc
      * /fr/contact will be cleared depending on your speaking url configuration.
      *
      *
-     * @param int $pageId entry to clear. 0 means all cache "/"
+     * @param int  $pageId    entry to clear. 0 means all cache "/"
      * @param bool $recursive recursive entry clearing
-     * @param $distributionIds
+     * @param      $distributionIds
      *
      * @return void
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws SiteNotFoundException
      */
-    protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
+    protected function queueClearCache(int $pageId, bool $recursive = false, $distributionIds = null):void
     {
         $wildcard = '';
         if ($recursive) {
@@ -214,10 +219,10 @@ class ClearCachePostProc
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
 
             if (count($languages) > 0) {
-                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                $this->enqueue($this->buildLink($entry, ['_language' => 0]) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
-                    if($lang->getLanguageId() != 0) {
-                        $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                    if ($lang->getLanguageId() != 0) {
+                        $this->enqueue($this->buildLink($entry, ['_language' => $lang->getLanguageId()]) . $wildcard, $distributionIds);
                     }
                 }
             } else {
@@ -228,12 +233,18 @@ class ClearCachePostProc
         }
     }
 
+    /**
+     * @param $link
+     * @param $distributionIds
+     *
+     * @return void
+     */
     protected function enqueue($link, $distributionIds)
     {
         $link = str_replace('//', '/', $link);
         $distArray = explode(',', $distributionIds);
         // for index.php link style
-        if (substr($link, 0, 1) != '/') {
+        if (!str_starts_with($link, '/')) {
             $link = '/' . $link;
         }
 
@@ -251,7 +262,7 @@ class ClearCachePostProc
      * @return array|false|int|string|null
      * @throws SiteNotFoundException
      */
-    protected function buildLink($pageUid, $linkArguments = array())
+    protected function buildLink($pageUid,array $linkArguments = [])
     {
         //some record saving function might raise a tsfe inialisation error
         try {
@@ -291,19 +302,14 @@ class ClearCachePostProc
             /* force a clear all cache */
             $force = false;
             if (array_search('/*', $paths) !== false) {
-                $paths = array('/*');
+                $paths = ['/*'];
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                $affectedRows = $queryBuilder
-                    ->delete('tx_tmcloudfront_domain_model_invalidation')
-                    ->where(
-                        $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                    )
-                    ->execute();
+                $queryBuilder->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId)))->executeStatement();
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-                $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+                $cloudFront = GeneralUtility::makeInstance(CloudFrontClient::class, $options);
+                $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $value['pathsegment'] . ' (' . $distId . ')', "tm_cloudfront");
                 try {
                     $result = $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
@@ -322,11 +328,11 @@ class ClearCachePostProc
                     $data = [
                         'pathsegment' => $value,
                         'distributionId' => $distId,
-                        'id' => md5($value.$distId),
+                        'id' => md5($value . $distId),
                     ];
                     GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
                         ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
-                        ->executeStatement($data);
+                        ->executeStatement(array_values($data));
                 }
             }
         }
@@ -334,7 +340,9 @@ class ClearCachePostProc
 
     /**
      * Generate a random string
+     *
      * @param int $length length of the string
+     *
      * @return string
      */
     protected function generateRandomString($length = 10)
@@ -360,7 +368,7 @@ class ClearCachePostProc
         if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
             foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
                 if ($resource->getStorage()->getUid() == $storage) {
-                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
+                    $wildcard = $resource instanceof FolderInterface
                         ? '/*'
                         : '';
                     $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
@@ -370,12 +378,14 @@ class ClearCachePostProc
         }
     }
 
-
-
     /**
      * A file has been moved.
      *
      * @param AfterFileMovedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileMoved(AfterFileMovedEvent $event): void
     {
@@ -386,6 +396,10 @@ class ClearCachePostProc
      * A file has been renamed.
      *
      * @param AfterFileRenamedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileRenamed(AfterFileRenamedEvent $event): void
     {
@@ -396,16 +410,24 @@ class ClearCachePostProc
      * A file has been added as a *replacement* of an existing one.
      *
      * @param AfterFileReplacedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileReplaced(AfterFileReplacedEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
+        $this->fileMod($event->getFile());
     }
 
     /**
      * A file has been created.
      *
      * @param AfterFileCreatedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileCreated(AfterFileCreatedEvent $event): void
     {
@@ -416,6 +438,10 @@ class ClearCachePostProc
      * A file has been deleted.
      *
      * @param AfterFileDeletedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileDeleted(AfterFileDeletedEvent $event): void
     {
@@ -430,17 +456,24 @@ class ClearCachePostProc
      * Contents of a file has been set.
      *
      * @param AfterFileContentsSetEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
     {
         $this->fileMod($event->getFile()->getParentFolder());
     }
 
-
     /**
      * A folder has been moved.
      *
      * @param AfterFolderMovedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
      */
     public function afterFolderMoved(AfterFolderMovedEvent $event): void
     {
@@ -452,6 +485,11 @@ class ClearCachePostProc
      * A folder has been renamed.
      *
      * @param AfterFolderRenamedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InsufficientFolderAccessPermissionsException
      */
     public function afterFolderRenamed(AfterFolderRenamedEvent $event): void
     {
@@ -463,6 +501,11 @@ class ClearCachePostProc
      * A folder has been deleted.
      *
      * @param AfterFolderDeletedEvent $event
+     *
+     * @return void
+     * @throws \Doctrine\DBAL\Driver\Exception
+     * @throws \Doctrine\DBAL\Exception
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InsufficientFolderAccessPermissionsException
      */
     public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
     {

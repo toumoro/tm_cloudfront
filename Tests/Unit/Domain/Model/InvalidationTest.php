@@ -1,22 +1,24 @@
 <?php
 namespace Toumoro\TmCloudfront\Tests\Unit\Domain\Model;
 
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+use Toumoro\TmCloudfront\Domain\Model\Invalidation;
 /**
  * Test case.
  *
  * @author Simon Ouellet 
  */
-class InvalidationTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
+class InvalidationTest extends UnitTestCase
 {
     /**
-     * @var \Toumoro\TmCloudfront\Domain\Model\Invalidation
+     * @var Invalidation
      */
     protected $subject = null;
 
     protected function setUp()
     {
         parent::setUp();
-        $this->subject = new \Toumoro\TmCloudfront\Domain\Model\Invalidation();
+        $this->subject = new Invalidation();
     }
 
     protected function tearDown()
