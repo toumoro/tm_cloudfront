@@ -32,26 +32,20 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Configuration\SiteConfiguration;
-use TYPO3\CMS\Core\Utility\HttpUtility;
-use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 class ClearCachePostProc
 {
     /**
-     * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager
+     * @var ConfigurationManager
      */
     protected $configurationManager;
-
-    protected $objectManager;
 
     /**
      * @var ContentObjectRenderer
@@ -74,10 +68,15 @@ class ClearCachePostProc
     protected $cloudFrontConfiguration = [];
 
     /**
+     * @var array
+     */
+    protected $distributionsMapping = [];
+
+    /**
      * Inject UriBuilder
      * @param UriBuilder $uriBuilder
      */
-    public function injectUriBuilder(UriBuilder $uriBuilder)
+    public function injectUriBuilder(UriBuilder $uriBuilder): void
     {
         $this->uriBuilder = $uriBuilder;
     }
@@ -92,6 +91,7 @@ class ClearCachePostProc
         $this->cloudFrontConfiguration =
             GeneralUtility::makeInstance(ExtensionConfiguration::class)
                 ->get('tm_cloudfront')['cloudfront'];
+        $this->distributionsMapping = $this->resolveDistributionIds();
     }
 
     /**
@@ -103,36 +103,34 @@ class ClearCachePostProc
      *
      * @return    void
      */
-    public function clearCachePostProc(&$params, &$pObj)
+    public function clearCachePostProc(&$params, &$pObj): void
     {
-        $pathToClear = array();
-        $pageUids = array();
 
         if ($pObj->BE_USER->workspace > 0) {
             // Do nothing when editor is inside a workspace
             return;
         }
 
+        $table = strval($params['table']);
+        $uid_page = intval($params['uid_page']);
+        $parentId = $pObj->getPID($table, $uid_page);
+        $tsConfig = BackendUtility::getPagesTSconfig($parentId);
+        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+        $domain = $site->getBase()->getHost();
+
+        $distributionIds = isset($this->distributionsMapping[$domain]) 
+            ? $this->distributionsMapping[$domain]
+            : implode(',', array_values($this->distributionsMapping));
+
+        // Priorité au TSconfig
+        if (!empty($tsConfig['distributionIds'])) {
+            $distributionIds = $tsConfig['distributionIds'];
+        }
+
         if (isset($params['cacheCmd'])) {
             /* when a clear cache button is clicked */
-            $this->cacheCmd($params);
+            $this->cacheCmd($params, $distributionIds);
         } else {
-
-            /* When a record is saved */
-            $uid = intval($params['uid']);
-            $table = strval($params['table']);
-            $uid_page = intval($params['uid_page']);
-
-            /* if it's a page we enqueue the parent */
-            $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig =  BackendUtility::getPagesTSconfig($parentId);
-
-            //get the distributionId for the root page, null means all (defined in extconf)
-            $distributionIds = null;
-            if (!empty($tsConfig['distributionIds'])) {
-                $distributionIds = $tsConfig['distributionIds'];
-            }
-
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
                 $this->queueClearCache($uid_page, false, $distributionIds);
@@ -163,6 +161,23 @@ class ClearCachePostProc
     }
 
     /**
+     * Retourne le(s) distributionId(s) à utiliser selon le domaine et la config
+     *
+     * @return string
+     */
+    protected function resolveDistributionIds(): array
+    {
+        $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
+        if ($mapping && is_string($mapping) && $mapping[0] === '{') {
+            $mappingArray = json_decode($mapping, true);
+            if (is_array($mappingArray)) {
+                return $mappingArray;
+            }
+        }
+        return explode(',', $mapping);
+    }
+
+    /**
      * This function handles the cache clearing buttons and clearCacheCmd tsconfig
      * @param array $params
      * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
@@ -171,14 +186,13 @@ class ClearCachePostProc
     protected function cacheCmd($params, $distributionIds = null)
     {
         if (($params['cacheCmd'] == "all") || ($params['cacheCmd'] == "pages")) {
-            $this->queueClearCache(0, true, $distributionIds);
+            $this->queueClearCache(0, true);
         } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
             $this->queueClearCache($params['cacheCmd'], false, $distributionIds);
         }
     }
 
     /**
-     *
      * Enqueue cache entries in $this->queue
      * A cache entry will be added to the queue for each language of the website.
      * For exemple:
@@ -207,7 +221,7 @@ class ClearCachePostProc
         }
 
         if ($distributionIds === null) {
-            $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
+            $distributionIds = implode(',', array_values($this->distributionsMapping));
         }
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
@@ -293,19 +307,19 @@ class ClearCachePostProc
             if (array_search('/*', $paths) !== false) {
                 $paths = array('/*');
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                $affectedRows = $queryBuilder
+                $queryBuilder
                     ->delete('tx_tmcloudfront_domain_model_invalidation')
                     ->where(
                         $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
                     )
-                    ->execute();
+                    ->executeStatement();
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
                 $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-                $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+
                 try {
-                    $result = $cloudFront->createInvalidation([
+                    $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
                         'InvalidationBatch' => [ // REQUIRED
                             'CallerReference' => $caller, // REQUIRED
@@ -324,6 +338,9 @@ class ClearCachePostProc
                         'distributionId' => $distId,
                         'id' => md5($value.$distId),
                     ];
+
+                    $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+
                     GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
                         ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
                         ->executeStatement($data);
@@ -355,22 +372,23 @@ class ClearCachePostProc
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
-    public function fileMod($resource)
+    public function fileMod($resource): void
     {
-        if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
-            foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
-                if ($resource->getStorage()->getUid() == $storage) {
-                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
-                        ? '/*'
-                        : '';
-                    $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
-                    $this->clearCache();
-                }
-            }
+        $storage = $resource->getStorage();
+        $storageConfig = $storage->getConfiguration();
+
+        if (isset($storageConfig['domain'])) {
+            $distributionIds = isset($this->distributionsMapping[$storageConfig['domain']]) 
+                ? $this->distributionsMapping[$storageConfig['domain']]
+                : implode(',', array_values($this->distributionsMapping));
+            $wildcard = $resource instanceof Folder
+                ? '/*'
+                : '';
+            $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
+            $this->clearCache();
         }
+
     }
-
-
 
     /**
      * A file has been moved.
