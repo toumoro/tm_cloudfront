@@ -27,6 +27,8 @@ class ClearCachePostProcTest extends  FunctionalTestCase
         'typo3conf/ext/tm_cloudfront',
     ];
 
+    protected ActionService $actionService;
+
         /**
      * Default Site Configuration
      * @var array
@@ -88,10 +90,10 @@ class ClearCachePostProcTest extends  FunctionalTestCase
 
     public function generateUrl() {
 
-        $this->setUpBackendUserFromFixture(1);
+        $this->setUpBackendUser(1);
 
         $this->actionService = $this->getActionService();
-        Bootstrap::initializeLanguageObject();
+        //Bootstrap::initializeLanguageObject();
 
         $this->actionService->modifyRecord(
             'pages',
