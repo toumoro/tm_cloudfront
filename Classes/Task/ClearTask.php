@@ -104,8 +104,6 @@ class ClearTask extends AbstractTask
             $ids[] = $value['uid'] ?? '-1 ';
         }
 
-        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
-
         try {
             $cloudFront->createInvalidation([
                 'DistributionId' => $distId, // REQUIRED
@@ -119,6 +117,7 @@ class ClearTask extends AbstractTask
                     ]
                 ]
             ]);
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'successful invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
         } catch (\Exception $e) {
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
             if (count($chunk) > 1) {
