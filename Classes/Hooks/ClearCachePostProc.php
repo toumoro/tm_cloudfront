@@ -32,6 +32,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
@@ -105,16 +106,18 @@ class ClearCachePostProc
      */
     public function clearCachePostProc(&$params, &$pObj): void
     {
-
         if ($pObj->BE_USER->workspace > 0) {
             // Do nothing when editor is inside a workspace
             return;
         }
 
-        $table = strval($params['table']);
-        $uid_page = intval($params['uid_page']);
-        $parentId = $pObj->getPID($table, $uid_page);
-        $tsConfig = BackendUtility::getPagesTSconfig($parentId);
+        
+        if(MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])){
+            $uid_page = intval($params['cacheCmd']);
+        } else {
+            $uid_page = intval($params['uid_page']);
+        }
+
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $domain = $site->getBase()->getHost();
 
@@ -122,15 +125,18 @@ class ClearCachePostProc
             ? $this->distributionsMapping[$domain]
             : implode(',', array_values($this->distributionsMapping));
 
-        // Priorité au TSconfig
-        if (!empty($tsConfig['distributionIds'])) {
-            $distributionIds = $tsConfig['distributionIds'];
-        }
-
         if (isset($params['cacheCmd'])) {
             /* when a clear cache button is clicked */
             $this->cacheCmd($params, $distributionIds);
         } else {
+            $table = strval($params['table']);
+            $parentId = $pObj->getPID($table, $uid_page);
+            $tsConfig = BackendUtility::getPagesTSconfig($parentId);
+            // Priorité au TSconfig
+            if (!empty($tsConfig['distributionIds'])) {
+                $distributionIds = $tsConfig['distributionIds'];
+            }
+            
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
                 $this->queueClearCache($uid_page, false, $distributionIds);
@@ -226,7 +232,6 @@ class ClearCachePostProc
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-
             if (count($languages) > 0) {
                 $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                 foreach ($languages as $k => $lang) {
@@ -332,18 +337,29 @@ class ClearCachePostProc
                 } catch (\Exception $e) {
                 }
             } else {
+                $connection = GeneralUtility::makeInstance(ConnectionPool::class)
+                    ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
                 foreach ($paths as $k => $value) {
-                    $data = [
-                        'pathsegment' => $value,
-                        'distributionId' => $distId,
-                        'id' => md5($value.$distId),
-                    ];
-
-                    $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
-
-                    GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
-                        ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
-                        ->executeStatement($data);
+                    // if id exists, do not insert it again
+                    $id = md5($value . $distId);
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                        ->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                    $row = $queryBuilder->select('uid')
+                        ->from('tx_tmcloudfront_domain_model_invalidation')
+                        ->where(
+                            $queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter($id, Connection::PARAM_STR))
+                        )
+                        ->executeQuery()
+                        ->fetchAssociative();   
+                    if(!$row){
+                        $connection->insert('tx_tmcloudfront_domain_model_invalidation',
+                            [
+                                'pathsegment' => $value,
+                                'distributionId' => $distId,
+                                'id' => md5($value.$distId),
+                            ]
+                        );
+                    }    
                 }
             }
         }

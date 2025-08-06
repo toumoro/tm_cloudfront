@@ -1,0 +1,14 @@
+cloudfront {
+   # cat=basic/enable; type=string; label=CloudFront API key
+   apikey =
+   # cat=basic/enable; type=string; label=CloudFront API key secret
+   apisecret =
+   # cat=basic/enable; type=string; label=Distribution Ids JSON mapping domain:distribution
+   distributionIds =
+   # cat=basic/enable; type=string; label=Region
+   region = us-east-1
+   # cat=basic/enable; type=string; label=Version
+   version = latest
+   # cat=basic/enable; type=string; label=Mode(live or table)
+   mode = live
+}

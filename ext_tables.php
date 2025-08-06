@@ -1,7 +1,3 @@
 <?php
-defined('TYPO3') || die('Access denied.');
+defined('TYPO3') or die('Access denied.');
 
-call_user_func(
-    function () {
-    }
-);
