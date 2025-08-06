@@ -7,16 +7,12 @@
 
 namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
 
-use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Cache\CacheManager;
-use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
-use TYPO3\CMS\Scheduler\Task\AbstractTask;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Core\Bootstrap;
 use Symfony\Component\Yaml\Yaml;
-use TYPO3\CMS\Core\Context\Context;
 
 
 
