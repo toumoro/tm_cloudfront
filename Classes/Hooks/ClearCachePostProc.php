@@ -107,31 +107,31 @@ class ClearCachePostProc
     public function clearCachePostProc(&$params, &$pObj): void
     {
         if ($pObj->BE_USER->workspace > 0) {
-            // Do nothing when editor is inside a workspace
+            // Do nothing when editor is inside a workspace#
             return;
         }
 
-        
-        if(MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])){
-            $uid_page = intval($params['cacheCmd']);
-        } else {
-            $uid_page = intval($params['uid_page']);
-        }
-
-        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
-        $domain = $site->getBase()->getHost();
-
-        $distributionIds = isset($this->distributionsMapping[$domain]) 
-            ? $this->distributionsMapping[$domain]
-            : implode(',', array_values($this->distributionsMapping));
-
-        if (isset($params['cacheCmd'])) {
+        if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
             /* when a clear cache button is clicked */
+            $this->cacheCmd($params);
+        }elseif(isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])){
+            $uid_page = intval($params['cacheCmd']);
+            $domains = $this->getLanguagesDomains($uid_page);
+            $distributionIds = [];
+            foreach ($domains as $domain) {
+                if (isset($this->distributionsMapping[$domain])) {
+                    $distributionIds[] = $this->distributionsMapping[$domain];
+                }
+            }
+            $distributionIds = implode(',', $distributionIds);
             $this->cacheCmd($params, $distributionIds);
         } else {
+            $uid_page = intval($params['uid_page']);
             $table = strval($params['table']);
             $parentId = $pObj->getPID($table, $uid_page);
             $tsConfig = BackendUtility::getPagesTSconfig($parentId);
+            $distributionIds = $this->getDistributionIds($uid_page, $params);
+
             // Priorité au TSconfig
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
@@ -164,6 +164,38 @@ class ClearCachePostProc
             }
         }
         $this->clearCache();
+    }
+
+    protected function getLanguagesDomains($uid_page){
+        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+        $languages = $site->getAllLanguages();
+        $domains = [];
+        foreach ($languages as $language) {
+            $domains[$language->getLanguageId()] = $language->getBase()->getHost();
+        }
+        return $domains;
+    }
+
+    protected function getDistributionIds($uid_page, $params): string
+    {
+        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                        ->getQueryBuilderForTable($params['table']);
+        $row = $queryBuilder->select('sys_language_uid')
+            ->from($params['table'])
+            ->where(
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
+            )
+            ->executeQuery()
+            ->fetchAssociative(); 
+        $language = $site->getLanguageById($row['sys_language_uid']);
+        $domain = $language->getBase()->getHost();
+
+        $distributionIds = isset($this->distributionsMapping[$domain]) 
+            ? $this->distributionsMapping[$domain]
+            : implode(',', array_values($this->distributionsMapping));
+
+        return $distributionIds;
     }
 
     /**
@@ -232,16 +264,30 @@ class ClearCachePostProc
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-            if (count($languages) > 0) {
-                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
-                foreach ($languages as $k => $lang) {
-                    if($lang->getLanguageId() != 0) {
-                        $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+            if(count(explode(',', $distributionIds)) > 1) {
+                if (count($languages) > 0) {
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
+                    foreach ($languages as $k => $lang) {
+                        if($lang->getLanguageId() != 0) {
+                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
+                        }
                     }
+                } else {
+                    $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
                 }
             } else {
-                $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
+                if (count($languages) > 0) {
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                    foreach ($languages as $k => $lang) {
+                        if($lang->getLanguageId() != 0) {
+                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                        }
+                    }
+                } else {
+                    $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
+                }
             }
+            
         } else {
             $this->enqueue($entry . $wildcard, $distributionIds);
         }
@@ -400,6 +446,7 @@ class ClearCachePostProc
         $storageConfig = $storage->getConfiguration();
 
         if (isset($storageConfig['publicBaseUrl'])) {
+            // todo ajouter log
             $distributionIds = isset($this->distributionsMapping[$storageConfig['publicBaseUrl']]) 
                 ? $this->distributionsMapping[$storageConfig['publicBaseUrl']]
                 : implode(',', array_values($this->distributionsMapping));
