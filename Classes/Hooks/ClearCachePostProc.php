@@ -399,9 +399,9 @@ class ClearCachePostProc
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
 
-        if (isset($storageConfig['domain'])) {
-            $distributionIds = isset($this->distributionsMapping[$storageConfig['domain']]) 
-                ? $this->distributionsMapping[$storageConfig['domain']]
+        if (isset($storageConfig['publicBaseUrl'])) {
+            $distributionIds = isset($this->distributionsMapping[$storageConfig['publicBaseUrl']]) 
+                ? $this->distributionsMapping[$storageConfig['publicBaseUrl']]
                 : implode(',', array_values($this->distributionsMapping));
             $wildcard = $resource instanceof Folder
                 ? '/*'

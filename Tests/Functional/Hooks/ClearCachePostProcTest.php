@@ -84,10 +84,13 @@ class ClearCachePostProcTest extends  FunctionalTestCase
         $reflectionMethod->setAccessible(true);
         return $reflectionMethod->invokeArgs($object, $arguments);
     }
-    /**
-     * @test
-     */
 
+    /**
+     * Test that the URL is generated correctly
+     * This test will check if the URL is generated correctly for the given page and language.
+     * It will also check if the invalidation records are created in the database.
+     */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function generateUrl() {
 
         $this->setUpBackendUser(1);
@@ -101,8 +104,17 @@ class ClearCachePostProcTest extends  FunctionalTestCase
             ['title' => 'Testing 1']
         );
 
+        $connection = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ConnectionPool::class)
+            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
+        $queryBuilder = $connection->createQueryBuilder();
+        $queryBuilder
+            ->select('uid')
+            ->from('tx_tmcloudfront_domain_model_invalidation')
+            ->where(
+                $queryBuilder->expr()->in('pathsegment', ['/en/sub*', '/dk/subtest*'])
+            );
+        $rows = $queryBuilder->executeQuery()->fetchAllAssociative();
 
-        $rows = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows('uid', 'tx_tmcloudfront_domain_model_invalidation',"pathsegment in ('/en/sub*','/dk/subtest*')");
         $this->assertEquals(count($rows),2);
           
     }
