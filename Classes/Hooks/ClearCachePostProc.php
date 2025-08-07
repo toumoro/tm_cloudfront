@@ -257,7 +257,10 @@ class ClearCachePostProc
         }
 
         foreach ($distArray as $key => $value) {
-            $this->queue[$value][] = $link;
+            $value = trim($value);
+            if ($value !== '') {
+                $this->queue[$value][] = $link;
+            }
         }
     }
 
@@ -335,10 +338,11 @@ class ClearCachePostProc
                         ]
                     ]);
                 } catch (\Exception $e) {
+                    // log error: could not create invalidation
+                    $errorMessage = 'Could not create invalidation for distribution ID ' . $distId . ': ' . $e->getMessage();
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                 }
             } else {
-                $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
                 foreach ($paths as $k => $value) {
                     // if id exists, do not insert it again
                     $id = md5($value . $distId);
@@ -352,6 +356,8 @@ class ClearCachePostProc
                         ->executeQuery()
                         ->fetchAssociative();   
                     if(!$row){
+                        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
+                            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
                         $connection->insert('tx_tmcloudfront_domain_model_invalidation',
                             [
                                 'pathsegment' => $value,
@@ -402,6 +408,11 @@ class ClearCachePostProc
                 : '';
             $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
             $this->clearCache();
+        }
+        else {
+           // log error: no domain found for this storage
+            $errorMessage = 'No domain found for storage with identifier: ' . $storage->getIdentifier();
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
         }
 
     }
