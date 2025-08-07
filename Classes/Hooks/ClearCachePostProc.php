@@ -131,7 +131,7 @@ class ClearCachePostProc
             $parentId = $pObj->getPID($table, $uid_page);
             $tsConfig = BackendUtility::getPagesTSconfig($parentId);
             $distributionIds = $this->getDistributionIds($uid_page, $params);
-
+            
             // Priorité au TSconfig
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
@@ -181,15 +181,19 @@ class ClearCachePostProc
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                         ->getQueryBuilderForTable($params['table']);
-        $row = $queryBuilder->select('sys_language_uid')
+
+        $row['sys_language_uid'] = 0;
+        $row = $queryBuilder->select('*')
             ->from($params['table'])
             ->where(
                 $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
             )
             ->executeQuery()
             ->fetchAssociative(); 
+        
         $language = $site->getLanguageById($row['sys_language_uid']);
         $domain = $language->getBase()->getHost();
+        
 
         $distributionIds = isset($this->distributionsMapping[$domain]) 
             ? $this->distributionsMapping[$domain]
