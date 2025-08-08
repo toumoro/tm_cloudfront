@@ -1,33 +1,45 @@
 {
-    "name": "toumoro/tm-cloudfront",
-    "description": "this extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.",
-    "license": "GPL-2.0-or-later",
-    "type": "typo3-cms-extension",
-    "authors": [
-        {
-            "name": "Simon Ouellet",
-            "role": "Developer"
-        }
-    ],
-    "require": {
-        "typo3/cms-core": "^13.4"
-    },
-    "autoload": {
-        "psr-4": {
-            "Toumoro\\TmCloudfront\\": "Classes"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Toumoro\\TmCloudfront\\Tests\\": "Tests"
-        }
-    },
-    "extra": {
-        "typo3/cms": {
-            "extension-key": "tm_cloudfront"
-        }
-    },
-    "replace": {
-        "typo3-ter/tm-cloudfront": "self.version"
+  "name": "toumoro/tm-cloudfront",
+  "description": "this extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.",
+  "license": "GPL-2.0-or-later",
+  "type": "typo3-cms-extension",
+  "authors": [
+    {
+      "name": "Simon Ouellet",
+      "role": "Developer"
     }
+  ],
+  "require": {
+    "typo3/cms-core": "^13.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "Toumoro\\TmCloudfront\\": "Classes"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Toumoro\\TmCloudfront\\Tests\\": "Tests"
+    }
+  },
+  "extra": {
+    "typo3/cms": {
+      "app-dir": ".Build",
+      "web-dir": ".Build/Web",
+      "extension-key": "tm_cloudfront"
+    }
+  },
+  "replace": {
+    "typo3-ter/tm-cloudfront": "self.version"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5",
+    "typo3/testing-framework": "^9.2"
+  },
+  "config": {
+    "allow-plugins": {
+      "typo3/cms-composer-installers": true,
+      "typo3/class-alias-loader": true
+    }
+  }
 }
