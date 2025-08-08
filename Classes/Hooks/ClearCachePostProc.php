@@ -178,26 +178,32 @@ class ClearCachePostProc
 
     protected function getDistributionIds($uid_page, $params): string
     {
-        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                        ->getQueryBuilderForTable($params['table']);
+        $domain = '';
 
-        $row['sys_language_uid'] = 0;
-        $row = $queryBuilder->select('*')
-            ->from($params['table'])
-            ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
-            )
-            ->executeQuery()
-            ->fetchAssociative(); 
-        
-        $language = $site->getLanguageById($row['sys_language_uid']);
-        $domain = $language->getBase()->getHost();
-        
+        if($uid_page > 0 && isset($params['table']) && isset($params['uid'])){
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                            ->getQueryBuilderForTable($params['table']);
+
+            $row['sys_language_uid'] = 0;
+            $row = $queryBuilder->select('*')
+                ->from($params['table'])
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
+                )
+                ->executeQuery()
+                ->fetchAssociative(); 
+            
+            $language = $site->getLanguageById($row['sys_language_uid']);
+            $domain = $language->getBase()->getHost();
+        }
 
         $distributionIds = isset($this->distributionsMapping[$domain]) 
             ? $this->distributionsMapping[$domain]
             : implode(',', array_values($this->distributionsMapping));
+        
+        $errorMessage = 'Get DistributionIds ' . $distributionIds . ': ';
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
 
         return $distributionIds;
     }
@@ -459,6 +465,8 @@ class ClearCachePostProc
                 : '';
             $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
             $this->clearCache();
+            $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : '. $resource->getIdentifier().' wildcard : '. $wildcard;
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
         }
         else {
            // log error: no domain found for this storage
@@ -495,7 +503,7 @@ class ClearCachePostProc
      */
     public function afterFileReplaced(AfterFileReplacedEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
+        $this->fileMod($event->getFile());
     }
 
     /**
