@@ -5,3 +5,4 @@ composer.lock
 Web
 .cache
 public/
+composer.json.testing
