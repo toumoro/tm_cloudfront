@@ -114,7 +114,7 @@ class ClearCachePostProc
         if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
             /* when a clear cache button is clicked */
             $this->cacheCmd($params);
-        }elseif(isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])){
+        } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
             $uid_page = intval($params['cacheCmd']);
             $domains = $this->getLanguagesDomains($uid_page);
             $distributionIds = [];
@@ -131,12 +131,12 @@ class ClearCachePostProc
             $parentId = $pObj->getPID($table, $uid_page);
             $tsConfig = BackendUtility::getPagesTSconfig($parentId);
             $distributionIds = $this->getDistributionIds($uid_page, $params);
-            
+
             // Priorité au TSconfig
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
             }
-            
+
             /* If the record is not a page, enqueue only the current page */
             if ($table != 'pages') {
                 $this->queueClearCache($uid_page, false, $distributionIds);
@@ -153,7 +153,7 @@ class ClearCachePostProc
                     }
                 }
                 // Clear cache for pages entered in TSconfig:
-                if ($tsConfig['clearCacheCmd']) {
+                if (!empty($tsConfig['clearCacheCmd'])) {
                     $Commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), TRUE);
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
@@ -166,7 +166,8 @@ class ClearCachePostProc
         $this->clearCache();
     }
 
-    protected function getLanguagesDomains($uid_page){
+    protected function getLanguagesDomains($uid_page)
+    {
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $languages = $site->getAllLanguages();
         $domains = [];
@@ -180,10 +181,10 @@ class ClearCachePostProc
     {
         $domain = '';
 
-        if($uid_page > 0 && isset($params['table']) && isset($params['uid'])){
+        if ($uid_page > 0 && isset($params['table']) && isset($params['uid'])) {
             $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                            ->getQueryBuilderForTable($params['table']);
+                ->getQueryBuilderForTable($params['table']);
 
             $row['sys_language_uid'] = 0;
             $row = $queryBuilder->select('*')
@@ -192,16 +193,17 @@ class ClearCachePostProc
                     $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
                 )
                 ->executeQuery()
-                ->fetchAssociative(); 
-            
+                ->fetchAssociative();
+
             $language = $site->getLanguageById($row['sys_language_uid']);
             $domain = $language->getBase()->getHost();
         }
 
-        $distributionIds = isset($this->distributionsMapping[$domain]) 
+
+        $distributionIds = isset($this->distributionsMapping[$domain])
             ? $this->distributionsMapping[$domain]
             : implode(',', array_values($this->distributionsMapping));
-        
+
         $errorMessage = 'Get DistributionIds ' . $distributionIds . ': ';
         $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
 
@@ -274,11 +276,11 @@ class ClearCachePostProc
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-            if(count(explode(',', $distributionIds)) > 1) {
+            if (count(explode(',', $distributionIds)) > 1) {
                 if (count($languages) > 0) {
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
                     foreach ($languages as $k => $lang) {
-                        if($lang->getLanguageId() != 0) {
+                        if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
                         }
                     }
@@ -289,7 +291,7 @@ class ClearCachePostProc
                 if (count($languages) > 0) {
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                     foreach ($languages as $k => $lang) {
-                        if($lang->getLanguageId() != 0) {
+                        if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
                         }
                     }
@@ -297,7 +299,6 @@ class ClearCachePostProc
                     $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
                 }
             }
-            
         } else {
             $this->enqueue($entry . $wildcard, $distributionIds);
         }
@@ -410,18 +411,19 @@ class ClearCachePostProc
                             $queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter($id, Connection::PARAM_STR))
                         )
                         ->executeQuery()
-                        ->fetchAssociative();   
-                    if(!$row){
+                        ->fetchAssociative();
+                    if (!$row) {
                         $connection = GeneralUtility::makeInstance(ConnectionPool::class)
                             ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
-                        $connection->insert('tx_tmcloudfront_domain_model_invalidation',
+                        $connection->insert(
+                            'tx_tmcloudfront_domain_model_invalidation',
                             [
                                 'pathsegment' => $value,
                                 'distributionId' => $distId,
-                                'id' => md5($value.$distId),
+                                'id' => md5($value . $distId),
                             ]
                         );
-                    }    
+                    }
                 }
             }
         }
@@ -457,7 +459,7 @@ class ClearCachePostProc
 
         if (isset($storageConfig['publicBaseUrl'])) {
             // todo ajouter log
-            $distributionIds = isset($this->distributionsMapping[$storageConfig['publicBaseUrl']]) 
+            $distributionIds = isset($this->distributionsMapping[$storageConfig['publicBaseUrl']])
                 ? $this->distributionsMapping[$storageConfig['publicBaseUrl']]
                 : implode(',', array_values($this->distributionsMapping));
             $wildcard = $resource instanceof Folder
@@ -465,15 +467,13 @@ class ClearCachePostProc
                 : '';
             $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
             $this->clearCache();
-            $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : '. $resource->getIdentifier().' wildcard : '. $wildcard;
+            $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
-        }
-        else {
-           // log error: no domain found for this storage
+        } else {
+            // log error: no domain found for this storage
             $errorMessage = 'No domain found for storage with identifier: ' . $storage->getIdentifier();
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
         }
-
     }
 
     /**
@@ -573,5 +573,4 @@ class ClearCachePostProc
         $this->fileMod($event->getFolder());
         $this->fileMod($event->getFolder()->getParentFolder());
     }
-
 }
