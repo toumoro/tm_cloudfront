@@ -262,7 +262,7 @@ class ClearCachePostProc
     {
         $wildcard = '';
         if ($recursive) {
-            $wildcard = '/*';
+            $wildcard = '*';
         }
         if ($pageId == 0) {
             $entry = '/';
@@ -306,6 +306,9 @@ class ClearCachePostProc
 
     protected function enqueue($link, $distributionIds)
     {
+        if($link=='*'){
+            $link = '/*';
+        } 
         $link = str_replace('//', '/', $link);
         $distArray = explode(',', $distributionIds);
         // for index.php link style
