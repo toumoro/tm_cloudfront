@@ -1,6 +1,7 @@
 /vendor/
 Build/testing-docker/.env
 Build/.phpunit.result.cache
+Build/phpunit/.phpunit.result.cache
 .Build/
 composer.lock
 Web
