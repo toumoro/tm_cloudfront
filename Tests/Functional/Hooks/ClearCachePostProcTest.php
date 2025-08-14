@@ -7,6 +7,8 @@
 
 namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
 
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
@@ -23,13 +25,14 @@ class ClearCachePostProcTest extends  FunctionalTestCase
      * @var array Have styleguide loaded
      */
     protected array $testExtensionsToLoad = [
-        'typo3conf/ext/typo3db_legacy',
-        'typo3conf/ext/tm_cloudfront',
+        'toumoro/tm-cloudfront',
+        'friendsoftypo3/typo3db-legacy',
+        'typo3/cms-scheduler',
     ];
 
     protected ActionService $actionService;
 
-        /**
+    /**
      * Default Site Configuration
      * @var array
      */
@@ -60,16 +63,23 @@ class ClearCachePostProcTest extends  FunctionalTestCase
      * |   6 |   3 | Sub Subpage       |                1 |           5 | /sub/sub |
      * +-----+-----+-------------------+------------------+-------------+----------+
      **/
-    protected function setUp(): void {
+    protected function setUp(): void
+    {
         parent::setUp();
-        $this->importCSVDataSet('typo3conf/ext/tm_cloudfront/Tests/Functional/DataSet/TranslatedSubpages.csv');
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.xml');
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/TranslatedSubpages.csv');
         $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
-        $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['distributionIds'] = 'AAAAAAAAAAAAAAA';
-         
+        $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront'] = [
+            'distributionIds' => 'AAAAAAAAAAAAAAA',
+            'region' => 'us',
+            'apikey' => 'AAAAAAAAAAAAAAA',
+            'apisecret' => 'AAAAAAAAAAAAAAA',
+            'version' => 'AAAAAAAAAAAAAAA',
+        ];
     }
-    
 
-        /**
+
+    /**
      * Helper function to call protected or private methods
      *
      * @param object $object The object to be invoked
@@ -91,7 +101,8 @@ class ClearCachePostProcTest extends  FunctionalTestCase
      * It will also check if the invalidation records are created in the database.
      */
     #[\PHPUnit\Framework\Attributes\Test]
-    public function generateUrl() {
+    public function generateUrl()
+    {
 
         $this->setUpBackendUser(1);
 
@@ -104,6 +115,8 @@ class ClearCachePostProcTest extends  FunctionalTestCase
             ['title' => 'Testing 1']
         );
 
+        $expectedArray = ['/en/sub*', '/dk/subtest*'];
+
         $connection = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ConnectionPool::class)
             ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
         $queryBuilder = $connection->createQueryBuilder();
@@ -111,15 +124,14 @@ class ClearCachePostProcTest extends  FunctionalTestCase
             ->select('uid')
             ->from('tx_tmcloudfront_domain_model_invalidation')
             ->where(
-                $queryBuilder->expr()->in('pathsegment', ['/en/sub*', '/dk/subtest*'])
+                $queryBuilder->expr()->in('pathsegment', $queryBuilder->createNamedParameter($expectedArray, Connection::PARAM_STR_ARRAY))
             );
         $rows = $queryBuilder->executeQuery()->fetchAllAssociative();
 
-        $this->assertEquals(count($rows),2);
-          
+        $this->assertEquals(count($rows), 2);
     }
 
-      /**
+    /**
      * Create a simple site config for the tests that
      * call a frontend page.
      *
@@ -162,7 +174,7 @@ class ClearCachePostProcTest extends  FunctionalTestCase
         }
     }
 
-        /**
+    /**
      * @return ActionService
      */
     protected function getActionService()
@@ -171,6 +183,4 @@ class ClearCachePostProcTest extends  FunctionalTestCase
             ActionService::class
         );
     }
-
-
 }

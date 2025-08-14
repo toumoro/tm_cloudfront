@@ -44,6 +44,16 @@ services:
                 typo3/cms-install:^12.4
             composer req typo3/cms-core:^12.4 -W --no-update
         fi
+        if [ ${TYPO3_VERSION} -eq 13 ]; then
+            composer req --dev --no-update \
+               "typo3/cms-composer-installers:^5.0" \
+                typo3/cms-backend:^13.4 \
+                typo3/cms-frontend:^13.4 \
+                typo3/cms-extbase:^13.4 \
+                typo3/cms-fluid:^13.4 \
+                typo3/cms-install:^13.4
+            composer req typo3/cms-core:^13.4 -W --no-update
+        fi
         composer update --no-progress --no-interaction;
       "
 

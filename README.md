@@ -51,5 +51,6 @@ This extension clears the AWS CloudFront cache based on the speaking path of a p
 ## Testing
 
 ```
-./Build/Scripts/runTests.sh -t 13.4 -p 8.2 -s functional -v
+composer install
+RUNTESTS_DIR_BIN=.Build/bin/ ./Build/Scripts/runTests.sh -p 8.2 -s functional
 ```

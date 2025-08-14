@@ -19,7 +19,6 @@ namespace Toumoro\TmCloudfront\Hooks;
  ***/
 
 use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
-use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent;
