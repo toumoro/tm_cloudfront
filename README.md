@@ -15,6 +15,7 @@ This extension clears the AWS CloudFront cache based on the speaking path of a p
 ## Configuration
 
 1. **CloudFront Settings**
+
    - Add your configuration in the TYPO3 backend or in `config/system/settings.php`:
      ```php
      'EXTENSIONS' => [
@@ -29,9 +30,11 @@ This extension clears the AWS CloudFront cache based on the speaking path of a p
      ```
 
 2. **Storage/CDN Mapping**
+
    - For files, set the CDN domain in the storage configuration (`domain` field).
 
 3. **TSconfig (optional)**
+
    - Add to your page configuration to customize cache commands:
      ```
      distributionIds = DIST_ID_1
@@ -44,3 +47,10 @@ This extension clears the AWS CloudFront cache based on the speaking path of a p
 
 - Use the "Clear Cache" button in TYPO3 to trigger CloudFront invalidation.
 - Invalidations are handled automatically according to your configuration.
+
+## Testing
+
+```
+composer install
+RUNTESTS_DIR_BIN=.Build/bin/ ./Build/Scripts/runTests.sh -p 8.2 -s functional
+```

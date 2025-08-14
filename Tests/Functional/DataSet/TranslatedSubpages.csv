@@ -1,11 +1,8 @@
-"sys_language",,,,,
-,"uid","pid","hidden","title","flag"
-,1,0,0,"Dansk","dk"
 "pages",,,,,
-,"uid","pid","title","sys_language_uid","l10n_parent","slug"
-,1,0,"Startpage",0,0,"/"
-,2,0,"Startpage - Dansk",1,1,"/"
-,3,1,"Subpage",0,0,"/sub"
-,5,3,"Sub Subpage",0,0,"/sub/sub"
-,4,1,"Subpage - Dansk",1,3,"/subtest"
-,6,3,"Sub Subpage",1,5,"/sub/sub"
+,"uid","pid","title","sys_language_uid","l10n_parent","slug","TSConfig"
+,1,0,"Startpage",0,0,"/","clearCache_disable ="
+,2,0,"Startpage - Dansk",1,1,"/","clearCache_disable ="
+,3,1,"Subpage",0,0,"/sub","clearCache_disable ="
+,5,3,"Sub Subpage",0,0,"/sub/sub","clearCache_disable ="
+,4,1,"Subpage - Dansk",1,3,"/subtest","clearCache_disable ="
+,6,3,"Sub Subpage",1,5,"/sub/sub","clearCache_disable ="

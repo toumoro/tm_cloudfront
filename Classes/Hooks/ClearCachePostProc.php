@@ -19,7 +19,6 @@ namespace Toumoro\TmCloudfront\Hooks;
  ***/
 
 use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
-use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent;
@@ -115,6 +114,7 @@ class ClearCachePostProc
             /* when a clear cache button is clicked */
             $this->cacheCmd($params);
         } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
+
             $uid_page = intval($params['cacheCmd']);
             $domains = $this->getLanguagesDomains($uid_page);
             $distributionIds = [];
@@ -124,6 +124,10 @@ class ClearCachePostProc
                 }
             }
             $distributionIds = implode(',', $distributionIds);
+
+            $errorMessage = 'clearCachePostProc cacheCmd: ' . $params['cacheCmd'].' distributionIds: ' . $distributionIds.' domains: ' . implode(',', $domains);
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+
             $this->cacheCmd($params, $distributionIds);
         } else {
             $uid_page = intval($params['uid_page']);
@@ -162,11 +166,13 @@ class ClearCachePostProc
                     }
                 }
             }
+            $errorMessage = 'clearCachePostProc table: ' . $table.' distributionIds: ' . $distributionIds;
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
         }
         $this->clearCache();
     }
 
-    protected function getLanguagesDomains($uid_page)
+    protected function getLanguagesDomains($uid_page): array
     {
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $languages = $site->getAllLanguages();
@@ -175,6 +181,18 @@ class ClearCachePostProc
             $domains[$language->getLanguageId()] = $language->getBase()->getHost();
         }
         return $domains;
+    }
+
+    protected function isMultiLanguageDomains($uid_page): bool
+    {
+        $multi = true;
+        $domains = $this->getLanguagesDomains($uid_page);
+        foreach ($domains as $lang => $domain){
+            if (strpos($domain, '.') === false) {
+                $multi = false;
+            }
+        }
+        return $multi;
     }
 
     protected function getDistributionIds($uid_page, $params): string
@@ -186,7 +204,6 @@ class ClearCachePostProc
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                 ->getQueryBuilderForTable($params['table']);
 
-            $row['sys_language_uid'] = 0;
             $row = $queryBuilder->select('*')
                 ->from($params['table'])
                 ->where(
@@ -194,19 +211,18 @@ class ClearCachePostProc
                 )
                 ->executeQuery()
                 ->fetchAssociative();
-
-            $language = $site->getLanguageById($row['sys_language_uid']);
+            $sysLanguageUid = is_null($row['sys_language_uid'])?0:$row['sys_language_uid'];
+            $language = $site->getLanguageById($sysLanguageUid);
             $domain = $language->getBase()->getHost();
         }
-
 
         $distributionIds = isset($this->distributionsMapping[$domain])
             ? $this->distributionsMapping[$domain]
             : implode(',', array_values($this->distributionsMapping));
 
-        $errorMessage = 'Get DistributionIds ' . $distributionIds . ': ';
+        $errorMessage = 'Get DistributionIds : ' . $distributionIds;
         $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
-
+        
         return $distributionIds;
     }
 
@@ -260,6 +276,9 @@ class ClearCachePostProc
      */
     protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
     {
+        $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: '.$distributionIds;
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+
         $wildcard = '';
         if ($recursive) {
             $wildcard = '*';
@@ -276,28 +295,30 @@ class ClearCachePostProc
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-            if (count(explode(',', $distributionIds)) > 1) {
-                if (count($languages) > 0) {
+
+            if (count($languages) > 0) {
+                if($this->isMultiLanguageDomains($entry)){
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
                         }
                     }
-                } else {
-                    $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
-                }
-            } else {
-                if (count($languages) > 0) {
+                } else{
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                    $errorMessage = 'queueClearCache enque lang: 0  distributionIds: '.$distributionIds;
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                            $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: '.$distributionIds;
+                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                         }
                     }
-                } else {
-                    $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
                 }
+                
+            } else {
+                $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
         } else {
             $this->enqueue($entry . $wildcard, $distributionIds);
@@ -306,6 +327,7 @@ class ClearCachePostProc
 
     protected function enqueue($link, $distributionIds)
     {
+        //$this->queue = [];
         if($link=='*'){
             $link = '/*';
         } 
@@ -460,23 +482,23 @@ class ClearCachePostProc
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
 
-        if (isset($storageConfig['publicBaseUrl'])) {
-            // todo ajouter log
-            $distributionIds = isset($this->distributionsMapping[$storageConfig['publicBaseUrl']])
-                ? $this->distributionsMapping[$storageConfig['publicBaseUrl']]
-                : implode(',', array_values($this->distributionsMapping));
-            $wildcard = $resource instanceof Folder
-                ? '/*'
-                : '';
-            $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
-            $this->clearCache();
-            $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
-            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
-        } else {
-            // log error: no domain found for this storage
-            $errorMessage = 'No domain found for storage with identifier: ' . $storage->getIdentifier();
-            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
-        }
+        // si $storageConfig['publicBaseUrl'] est vide c'est un Local driver et on invvalide toutes les distributions
+        $domain = $storageConfig['publicBaseUrl'] ?? '';
+        
+        $distributionIds = isset($this->distributionsMapping[$domain])
+            ? $this->distributionsMapping[$domain]
+            : implode(',', array_values($this->distributionsMapping));
+        $wildcard = $resource instanceof Folder
+            ? '/*'
+            : '';
+        $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
+        $this->clearCache();
+
+        $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+        
+        // Reset the queue after processing for testing purposes
+        $this->queue = [];
     }
 
     /**
@@ -510,16 +532,6 @@ class ClearCachePostProc
     }
 
     /**
-     * A file has been created.
-     *
-     * @param AfterFileCreatedEvent $event
-     */
-    public function afterFileCreated(AfterFileCreatedEvent $event): void
-    {
-        $this->fileMod($event->getFolder());
-    }
-
-    /**
      * A file has been deleted.
      *
      * @param AfterFileDeletedEvent $event
@@ -540,7 +552,7 @@ class ClearCachePostProc
      */
     public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
+        $this->fileMod($event->getFile());
     }
 
 
@@ -562,7 +574,6 @@ class ClearCachePostProc
      */
     public function afterFolderRenamed(AfterFolderRenamedEvent $event): void
     {
-        $this->fileMod($event->getFolder());
         $this->fileMod($event->getFolder()->getParentFolder());
     }
 
@@ -574,6 +585,5 @@ class ClearCachePostProc
     public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
     {
         $this->fileMod($event->getFolder());
-        $this->fileMod($event->getFolder()->getParentFolder());
     }
 }
