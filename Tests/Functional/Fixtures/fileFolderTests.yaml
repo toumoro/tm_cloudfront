@@ -1,0 +1,121 @@
+afterFileReplaced:
+  1:
+    - pathsegment: "/test_fileReplaced_folder/replacedfile.txt"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/test_fileReplaced_folder/replacedfile.txt"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/test_fileReplaced_folder/replacedfile.txt"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/test_fileReplaced_folder/replacedfile.txt"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/test_fileReplaced_folder/replacedfile_01.txt"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFileMoved:
+  1:
+    - pathsegment: "/test_fileMoved_folder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/test_fileMoved_folder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/test_fileMoved_folder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/test_fileMoved_folder/*"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/test_fileMoved_folder/*"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFileRenamed:
+  1:
+    - pathsegment: "/test_fileRenamed_folder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/test_fileRenamed_folder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/test_fileRenamed_folder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/test_fileRenamed_folder/*"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/test_fileRenamed_folder/*"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFileContentsSet:
+  1:
+    - pathsegment: "/test_fileContentSet_folder/testfile.txt"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/test_fileContentSet_folder/testfile.txt"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/test_fileContentSet_folder/testfile.txt"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/test_fileContentSet_folder/testfile.txt"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/test_fileContentSet_folder/testfile_01.txt"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFileDeleted:
+  1:
+    - pathsegment: "/test_fileDeleted_folder/deleted.txt"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/test_fileDeleted_folder/deleted.txt"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/test_fileDeleted_folder/deleted.txt"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/test_fileDeleted_folder/deleted.txt"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/test_fileDeleted_folder/deleted.txt"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFolderMoved:
+  1:
+    - pathsegment: "/testFolder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/testFolder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/testFolder/*"
+      distributionId: "DKDKDKDKDKDK"
+    - pathsegment: "/movedFolder/testFolder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/movedFolder/testFolder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/movedFolder/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/movedFolder/testFolder/*"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/movedFolder/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFolderRenamed:
+  1:
+    - pathsegment: "/testFolder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/testFolder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/testFolder/*"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/testFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+
+afterFolderDeleted:
+  1:
+    - pathsegment: "/testFolder/toDeleteFolder/*"
+      distributionId: "WWWWWWWWW"
+    - pathsegment: "/testFolder/toDeleteFolder/*"
+      distributionId: "ENENENENENEN"
+    - pathsegment: "/testFolder/toDeleteFolder/*"
+      distributionId: "CDNCDNCDNCDN"
+    - pathsegment: "/testFolder/toDeleteFolder/*"
+      distributionId: "DKDKDKDKDKDK"
+  2:
+    - pathsegment: "/testFolder/toDeleteFolder/*"
+      distributionId: "CDNCDNCDNCDN"
