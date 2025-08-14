@@ -2,30 +2,25 @@
 
 namespace Toumoro\TmCloudfront\Task;
 
-
-/***
- *
- * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
- *
- * For the full copyright and license information, please read the
- * LICENSE.txt file that was distributed with this source code.
- *
- *  (c) 2022 Toumoro
- *
- ***/
-
-
+use Aws\CloudFront\CloudFrontClient;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Scheduler\Task\AbstractTask;
 use Doctrine\DBAL\Driver\Exception;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
 
-
 class ClearTask extends AbstractTask
 {
+
+    protected array $cloudFrontConfiguration = [];
+
+    public function __wakeup()
+    {
+        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
+    }
 
     /**
      * @return bool
@@ -36,25 +31,26 @@ class ClearTask extends AbstractTask
      */
     public function execute()
     {
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
-        $distributionIds = $this->getDistributionIds();
-        foreach ($distributionIds as $key => $distId) {
+        $distributionIds = explode(',', implode(',', $this->resolveDistributionIds()));
+
+        foreach ($distributionIds as $distId) {
             //clean duplicate values
-            GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
+            /* GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable("tx_tmcloudfront_domain_model_invalidation")
                 ->prepare("delete inv from tx_tmcloudfront_domain_model_invalidation inv inner join tx_tmcloudfront_domain_model_invalidation jt on inv.pathsegment = jt.pathsegment and inv.distributionId = jt.distributionId and jt.uid > inv.uid")
-                ->executeStatement();
+            ->executeStatement(); */
 
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
             $count = $queryBuilder
                 ->count('uid')
                 ->from('tx_tmcloudfront_domain_model_invalidation')
                 ->where(
-                    $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
+                    $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId, Connection::PARAM_STR))
                 )
-                ->execute()
+                ->executeQuery()
                 ->fetchOne();
 
             if ($count > 0) {
+
                 $options = [
                     'version' => $this->cloudFrontConfiguration['version'],
                     'region' => $this->cloudFrontConfiguration['region'],
@@ -63,7 +59,7 @@ class ClearTask extends AbstractTask
                         'secret' => $this->cloudFrontConfiguration['apisecret'],
                     ]
                 ];
-                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
+                $cloudFront = GeneralUtility::makeInstance(CloudFrontClient::class, $options);
 
                 $list = $cloudFront->listInvalidations([
                     'DistributionId' => $distId,
@@ -86,11 +82,7 @@ class ClearTask extends AbstractTask
                     $rows = $queryBuilder
                         ->select('*')
                         ->from('tx_tmcloudfront_domain_model_invalidation')
-                        ->setMaxResults($availableInvalidations)
-                        ->where(
-                            $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                        )
-                        ->execute()
+                        ->setMaxResults($availableInvalidations)->where($queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId, Connection::PARAM_STR)))->executeQuery()
                         ->fetchAllAssociative();
 
                     foreach (array_chunk($rows, $availableInvalidations) as $chunk) {
@@ -106,16 +98,17 @@ class ClearTask extends AbstractTask
     {
         $pathsegments = [];
         $ids = [];
+
         foreach ($chunk as $value) {
             $pathsegments[] = $value['pathsegment'] ?? 'undefined? ';
             $ids[] = $value['uid'] ?? '-1 ';
         }
-        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, implode(', ', $pathsegments) . ' (' . $distId . ')',"tm_cloudfront");
+
         try {
-            $result = $cloudFront->createInvalidation([
+            $cloudFront->createInvalidation([
                 'DistributionId' => $distId, // REQUIRED
                 'InvalidationBatch' => [// REQUIRED
-                    'CallerReference' => $this->generateRandomString(16), // REQUIRED
+                    'CallerReference' => $this->generateRandomString(), // REQUIRED
                     'Paths' => [// REQUIRED
                         'Items' => $pathsegments,
                         // items or paths to invalidate
@@ -124,6 +117,7 @@ class ClearTask extends AbstractTask
                     ]
                 ]
             ]);
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'successful invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
         } catch (\Exception $e) {
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0,'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').',"tm_cloudfront");
             if (count($chunk) > 1) {
@@ -133,16 +127,12 @@ class ClearTask extends AbstractTask
                 }
             }
         }
+
         if (!$flushDb) {
             return;
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-        $affectedRows = $queryBuilder
-            ->delete('tx_tmcloudfront_domain_model_invalidation')
-            ->where(
-                $queryBuilder->expr()->in('uid', $ids)
-            )
-            ->execute();
+        $queryBuilder->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->in('uid', $ids))->executeStatement();
     }
 
     /**
@@ -161,25 +151,21 @@ class ClearTask extends AbstractTask
         return $randomString;
     }
 
-    protected function getDistributionIds()
+    /**
+     * Retourne le(s) distributionId(s) à utiliser selon le domaine et la config
+     *
+     * @return array
+     */
+    protected function resolveDistributionIds(): array
     {
-        $pagesDistributionIds =
-            $this->cloudFrontConfiguration['distributionIds'] ?? [];
-        $distributionIds =
-            is_array($pagesDistributionIds)
-                ? $pagesDistributionIds
-                : explode(',', $pagesDistributionIds);
-        foreach ($this->cloudFrontConfiguration['fileStorage'] ?? [] as $fileStorageDistributionId) {
-            $distributionIds =
-                array_merge(
-                    $distributionIds,
-                    is_array($fileStorageDistributionId)
-                        ? $fileStorageDistributionId
-                        : explode(',', $fileStorageDistributionId)
-                );
+        $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
+        if ($mapping && is_string($mapping) && $mapping[0] === '{') {
+            $mappingArray = json_decode($mapping, true);
+            if (is_array($mappingArray)) {
+                return $mappingArray;
+            }
         }
-        return $distributionIds;
-
+        return explode(',', $mapping);
     }
 
 }

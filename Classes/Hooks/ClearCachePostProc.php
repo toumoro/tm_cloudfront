@@ -19,7 +19,6 @@ namespace Toumoro\TmCloudfront\Hooks;
  ***/
 
 use TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent;
-use TYPO3\CMS\Core\Resource\Event\AfterFileCreatedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent;
 use TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent;
@@ -32,26 +31,21 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Configuration\SiteConfiguration;
-use TYPO3\CMS\Core\Utility\HttpUtility;
-use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 class ClearCachePostProc
 {
     /**
-     * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager
+     * @var ConfigurationManager
      */
     protected $configurationManager;
-
-    protected $objectManager;
 
     /**
      * @var ContentObjectRenderer
@@ -74,10 +68,15 @@ class ClearCachePostProc
     protected $cloudFrontConfiguration = [];
 
     /**
+     * @var array
+     */
+    protected $distributionsMapping = [];
+
+    /**
      * Inject UriBuilder
      * @param UriBuilder $uriBuilder
      */
-    public function injectUriBuilder(UriBuilder $uriBuilder)
+    public function injectUriBuilder(UriBuilder $uriBuilder): void
     {
         $this->uriBuilder = $uriBuilder;
     }
@@ -92,6 +91,7 @@ class ClearCachePostProc
         $this->cloudFrontConfiguration =
             GeneralUtility::makeInstance(ExtensionConfiguration::class)
                 ->get('tm_cloudfront')['cloudfront'];
+        $this->distributionsMapping = $this->resolveDistributionIds();
     }
 
     /**
@@ -103,32 +103,40 @@ class ClearCachePostProc
      *
      * @return    void
      */
-    public function clearCachePostProc(&$params, &$pObj)
+    public function clearCachePostProc(&$params, &$pObj): void
     {
-        $pathToClear = array();
-        $pageUids = array();
-
         if ($pObj->BE_USER->workspace > 0) {
-            // Do nothing when editor is inside a workspace
+            // Do nothing when editor is inside a workspace#
             return;
         }
 
-        if (isset($params['cacheCmd'])) {
+        if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
             /* when a clear cache button is clicked */
             $this->cacheCmd($params);
+        } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
+
+            $uid_page = intval($params['cacheCmd']);
+            $domains = $this->getLanguagesDomains($uid_page);
+            $distributionIds = [];
+            foreach ($domains as $domain) {
+                if (isset($this->distributionsMapping[$domain])) {
+                    $distributionIds[] = $this->distributionsMapping[$domain];
+                }
+            }
+            $distributionIds = implode(',', $distributionIds);
+
+            $errorMessage = 'clearCachePostProc cacheCmd: ' . $params['cacheCmd'].' distributionIds: ' . $distributionIds.' domains: ' . implode(',', $domains);
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+
+            $this->cacheCmd($params, $distributionIds);
         } else {
-
-            /* When a record is saved */
-            $uid = intval($params['uid']);
-            $table = strval($params['table']);
             $uid_page = intval($params['uid_page']);
-
-            /* if it's a page we enqueue the parent */
+            $table = strval($params['table']);
             $parentId = $pObj->getPID($table, $uid_page);
-            $tsConfig =  BackendUtility::getPagesTSconfig($parentId);
+            $tsConfig = BackendUtility::getPagesTSconfig($parentId);
+            $distributionIds = $this->getDistributionIds($uid_page, $params);
 
-            //get the distributionId for the root page, null means all (defined in extconf)
-            $distributionIds = null;
+            // Priorité au TSconfig
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
             }
@@ -149,7 +157,7 @@ class ClearCachePostProc
                     }
                 }
                 // Clear cache for pages entered in TSconfig:
-                if ($tsConfig['clearCacheCmd']) {
+                if (!empty($tsConfig['clearCacheCmd'])) {
                     $Commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), TRUE);
                     $Commands = array_unique($Commands);
                     foreach ($Commands as $cmdPart) {
@@ -158,8 +166,81 @@ class ClearCachePostProc
                     }
                 }
             }
+            $errorMessage = 'clearCachePostProc table: ' . $table.' distributionIds: ' . $distributionIds;
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
         }
         $this->clearCache();
+    }
+
+    protected function getLanguagesDomains($uid_page): array
+    {
+        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+        $languages = $site->getAllLanguages();
+        $domains = [];
+        foreach ($languages as $language) {
+            $domains[$language->getLanguageId()] = $language->getBase()->getHost();
+        }
+        return $domains;
+    }
+
+    protected function isMultiLanguageDomains($uid_page): bool
+    {
+        $multi = true;
+        $domains = $this->getLanguagesDomains($uid_page);
+        foreach ($domains as $lang => $domain){
+            if (strpos($domain, '.') === false) {
+                $multi = false;
+            }
+        }
+        return $multi;
+    }
+
+    protected function getDistributionIds($uid_page, $params): string
+    {
+        $domain = '';
+
+        if ($uid_page > 0 && isset($params['table']) && isset($params['uid'])) {
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                ->getQueryBuilderForTable($params['table']);
+
+            $row = $queryBuilder->select('*')
+                ->from($params['table'])
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($params['uid'], Connection::PARAM_INT))
+                )
+                ->executeQuery()
+                ->fetchAssociative();
+            $sysLanguageUid = is_null($row['sys_language_uid'])?0:$row['sys_language_uid'];
+            $language = $site->getLanguageById($sysLanguageUid);
+            $domain = $language->getBase()->getHost();
+        }
+
+        $distributionIds = isset($this->distributionsMapping[$domain])
+            ? $this->distributionsMapping[$domain]
+            : implode(',', array_values($this->distributionsMapping));
+
+        $errorMessage = 'Get DistributionIds : ' . $distributionIds;
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+        
+        return $distributionIds;
+    }
+
+    /**
+     * Retourne le(s) distributionId(s) à utiliser selon le domaine et la config
+     *
+     * @return string
+     */
+    protected function resolveDistributionIds(): array
+    {
+        $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
+        if ($mapping && is_string($mapping) && $mapping[0] === '{') {
+            $mappingArray = json_decode($mapping, true);
+            if (is_array($mappingArray)) {
+                return $mappingArray;
+            }
+        }
+        return explode(',', $mapping);
     }
 
     /**
@@ -171,14 +252,13 @@ class ClearCachePostProc
     protected function cacheCmd($params, $distributionIds = null)
     {
         if (($params['cacheCmd'] == "all") || ($params['cacheCmd'] == "pages")) {
-            $this->queueClearCache(0, true, $distributionIds);
+            $this->queueClearCache(0, true);
         } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
             $this->queueClearCache($params['cacheCmd'], false, $distributionIds);
         }
     }
 
     /**
-     *
      * Enqueue cache entries in $this->queue
      * A cache entry will be added to the queue for each language of the website.
      * For exemple:
@@ -196,9 +276,12 @@ class ClearCachePostProc
      */
     protected function queueClearCache($pageId, $recursive = false, $distributionIds = null)
     {
+        $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: '.$distributionIds;
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+
         $wildcard = '';
         if ($recursive) {
-            $wildcard = '/*';
+            $wildcard = '*';
         }
         if ($pageId == 0) {
             $entry = '/';
@@ -207,19 +290,33 @@ class ClearCachePostProc
         }
 
         if ($distributionIds === null) {
-            $distributionIds = $this->cloudFrontConfiguration['distributionIds'];
+            $distributionIds = implode(',', array_values($this->distributionsMapping));
         }
 
         if (MathUtility::canBeInterpretedAsInteger($entry)) {
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
 
             if (count($languages) > 0) {
-                $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
-                foreach ($languages as $k => $lang) {
-                    if($lang->getLanguageId() != 0) {
-                        $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                if($this->isMultiLanguageDomains($entry)){
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
+                    foreach ($languages as $k => $lang) {
+                        if ($lang->getLanguageId() != 0) {
+                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
+                        }
+                    }
+                } else{
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
+                    $errorMessage = 'queueClearCache enque lang: 0  distributionIds: '.$distributionIds;
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+                    foreach ($languages as $k => $lang) {
+                        if ($lang->getLanguageId() != 0) {
+                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
+                            $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: '.$distributionIds;
+                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+                        }
                     }
                 }
+                
             } else {
                 $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
@@ -230,6 +327,10 @@ class ClearCachePostProc
 
     protected function enqueue($link, $distributionIds)
     {
+        //$this->queue = [];
+        if($link=='*'){
+            $link = '/*';
+        } 
         $link = str_replace('//', '/', $link);
         $distArray = explode(',', $distributionIds);
         // for index.php link style
@@ -238,7 +339,10 @@ class ClearCachePostProc
         }
 
         foreach ($distArray as $key => $value) {
-            $this->queue[$value][] = $link;
+            $value = trim($value);
+            if ($value !== '') {
+                $this->queue[$value][] = $link;
+            }
         }
     }
 
@@ -293,19 +397,19 @@ class ClearCachePostProc
             if (array_search('/*', $paths) !== false) {
                 $paths = array('/*');
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                $affectedRows = $queryBuilder
+                $queryBuilder
                     ->delete('tx_tmcloudfront_domain_model_invalidation')
                     ->where(
                         $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
                     )
-                    ->execute();
+                    ->executeStatement();
             }
 
             if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
                 $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-                $GLOBALS['BE_USER']->writelog(4,0,0,0,$value['pathsegment']. ' ('.$distId.')', "tm_cloudfront");
+
                 try {
-                    $result = $cloudFront->createInvalidation([
+                    $cloudFront->createInvalidation([
                         'DistributionId' => $distId, // REQUIRED
                         'InvalidationBatch' => [ // REQUIRED
                             'CallerReference' => $caller, // REQUIRED
@@ -316,17 +420,35 @@ class ClearCachePostProc
                         ]
                     ]);
                 } catch (\Exception $e) {
+                    // log error: could not create invalidation
+                    $errorMessage = 'Could not create invalidation for distribution ID ' . $distId . ': ' . $e->getMessage();
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                 }
             } else {
                 foreach ($paths as $k => $value) {
-                    $data = [
-                        'pathsegment' => $value,
-                        'distributionId' => $distId,
-                        'id' => md5($value.$distId),
-                    ];
-                    GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
-                        ->prepare("insert ignore into tx_tmcloudfront_domain_model_invalidation (pathsegment,distributionId,id) values(?,?,?)")
-                        ->executeStatement($data);
+                    // if id exists, do not insert it again
+                    $id = md5($value . $distId);
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                        ->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+                    $row = $queryBuilder->select('uid')
+                        ->from('tx_tmcloudfront_domain_model_invalidation')
+                        ->where(
+                            $queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter($id, Connection::PARAM_STR))
+                        )
+                        ->executeQuery()
+                        ->fetchAssociative();
+                    if (!$row) {
+                        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
+                            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
+                        $connection->insert(
+                            'tx_tmcloudfront_domain_model_invalidation',
+                            [
+                                'pathsegment' => $value,
+                                'distributionId' => $distId,
+                                'id' => md5($value . $distId),
+                            ]
+                        );
+                    }
                 }
             }
         }
@@ -355,22 +477,29 @@ class ClearCachePostProc
      * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
-    public function fileMod($resource)
+    public function fileMod($resource): void
     {
-        if (!empty($this->cloudFrontConfiguration['fileStorage'])) {
-            foreach ($this->cloudFrontConfiguration['fileStorage'] as $storage => $distributionIds) {
-                if ($resource->getStorage()->getUid() == $storage) {
-                    $wildcard = $resource instanceof \Causal\FileList\Domain\Model\Folder
-                        ? '/*'
-                        : '';
-                    $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
-                    $this->clearCache();
-                }
-            }
-        }
+        $storage = $resource->getStorage();
+        $storageConfig = $storage->getConfiguration();
+
+        // si $storageConfig['publicBaseUrl'] est vide c'est un Local driver et on invvalide toutes les distributions
+        $domain = $storageConfig['publicBaseUrl'] ?? '';
+        
+        $distributionIds = isset($this->distributionsMapping[$domain])
+            ? $this->distributionsMapping[$domain]
+            : implode(',', array_values($this->distributionsMapping));
+        $wildcard = $resource instanceof Folder
+            ? '/*'
+            : '';
+        $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
+        $this->clearCache();
+
+        $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+        
+        // Reset the queue after processing for testing purposes
+        $this->queue = [];
     }
-
-
 
     /**
      * A file has been moved.
@@ -399,17 +528,7 @@ class ClearCachePostProc
      */
     public function afterFileReplaced(AfterFileReplacedEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
-    }
-
-    /**
-     * A file has been created.
-     *
-     * @param AfterFileCreatedEvent $event
-     */
-    public function afterFileCreated(AfterFileCreatedEvent $event): void
-    {
-        $this->fileMod($event->getFolder());
+        $this->fileMod($event->getFile());
     }
 
     /**
@@ -433,7 +552,7 @@ class ClearCachePostProc
      */
     public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
     {
-        $this->fileMod($event->getFile()->getParentFolder());
+        $this->fileMod($event->getFile());
     }
 
 
@@ -455,7 +574,6 @@ class ClearCachePostProc
      */
     public function afterFolderRenamed(AfterFolderRenamedEvent $event): void
     {
-        $this->fileMod($event->getFolder());
         $this->fileMod($event->getFolder()->getParentFolder());
     }
 
@@ -467,7 +585,5 @@ class ClearCachePostProc
     public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
     {
         $this->fileMod($event->getFolder());
-        $this->fileMod($event->getFolder()->getParentFolder());
     }
-
 }

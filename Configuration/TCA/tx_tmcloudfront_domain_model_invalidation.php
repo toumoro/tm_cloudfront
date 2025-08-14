@@ -5,7 +5,6 @@ return [
         'label' => 'pathsegment',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
-        'cruser_id' => 'cruser_id',
         'versioningWS' => true,
         'languageField' => 'sys_language_uid',
         'transOrigPointerField' => 'l10n_parent',
@@ -17,7 +16,10 @@ return [
             'endtime' => 'endtime',
         ],
         'searchFields' => 'pathsegment',
-        'iconfile' => 'EXT:tm_cloudfront/Resources/Public/Icons/tx_tmcloudfront_domain_model_invalidation.gif'
+        'iconfile' => 'EXT:tm_cloudfront/Resources/Public/Icons/tx_tmcloudfront_domain_model_invalidation.gif',
+        'security' => [
+            'ignorePageTypeRestriction' => true,
+        ],
     ],
     'types' => [
         '1' => ['showitem' => 'sys_language_uid,l10n_parent,l10n_diffsource,hidden,pathsegment,--div--;LLL:EXT:frontend/Resources/Private/Language/locallang_ttc.xlf:tabs.access,starttime,endtime'],
@@ -26,30 +28,17 @@ return [
         'sys_language_uid' => [
             'exclude' => true,
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.language',
-            'config' => [
-                'type' => 'select',
-                'renderType' => 'selectSingle',
-                'special' => 'languages',
-                'items' => [
-                    [
-                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.allLanguages',
-                        -1,
-                        'flags-multiple'
-                    ]
-                ],
-                'default' => 0,
-            ],
+            'config' => ['type' => 'language'],
         ],
         'l10n_parent' => [
             'displayCond' => 'FIELD:sys_language_uid:>:0',
-            'exclude' => true,
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.l18n_parent',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
                 'default' => 0,
                 'items' => [
-                    ['', 0],
+                    ['label' => '', 'value' => 0],
                 ],
                 'foreign_table' => 'tx_tmcloudfront_domain_model_invalidation',
                 'foreign_table_where' => 'AND tx_tmcloudfront_domain_model_invalidation.pid=###CURRENT_PID### AND tx_tmcloudfront_domain_model_invalidation.sys_language_uid IN (-1,0)',
@@ -75,7 +64,7 @@ return [
                 'type' => 'check',
                 'items' => [
                     '1' => [
-                        '0' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.enabled'
+                        'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.enabled'
                     ]
                 ],
             ],
@@ -87,10 +76,8 @@ return [
             ],
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
             'config' => [
-                'type' => 'input',
-                'renderType' => 'inputDateTime',
+                'type' => 'datetime',
                 'size' => 13,
-                'eval' => 'datetime',
                 'default' => 0,
             ],
         ],
@@ -101,10 +88,8 @@ return [
             ],
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.endtime',
             'config' => [
-                'type' => 'input',
-                'renderType' => 'inputDateTime',
+                'type' => 'datetime',
                 'size' => 13,
-                'eval' => 'datetime',
                 'default' => 0,
                 'range' => [
                     'upper' => mktime(0, 0, 0, 1, 1, 2038)

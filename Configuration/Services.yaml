@@ -13,30 +13,37 @@ services:
         identifier: 'tm/file_list'
         method: 'afterFileMoved'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFileRenamed'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFileReplaced'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFileDeleted'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFileContentsSet'
         event: TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFolderMoved'
         event: TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFolderRenamed'
         event: TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent
+
       - name: event.listener
         identifier: 'tm/file_list'
         method: 'afterFolderDeleted'
