@@ -3,6 +3,7 @@
 namespace Toumoro\TmCloudfront\Cache;
 
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Connection;
@@ -11,6 +12,10 @@ use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\SiteFinder;
 
+/**
+ * Class CloudFrontCacheManager
+ * This class manages the cache for CloudFront, handling invalidations and enqueuing resources.
+ */
 class CloudFrontCacheManager
 {
     protected array $queue = [];
@@ -24,7 +29,14 @@ class CloudFrontCacheManager
         $this->distributionsMapping = $this->resolveDistributionIds();
     }
 
-    public function fileMod($resource): void
+    /**
+     * This function handles the cache clearing for files and folders.
+     * It enqueues the resource identifier and distribution IDs for invalidation.
+     * 
+     * @param Folder|File $resource The resource that has been modified.
+     * @return void
+     */
+    public function fileMod(Folder|File $resource): void
     {
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
@@ -45,6 +57,12 @@ class CloudFrontCacheManager
         $this->queue = [];
     }
 
+    /**
+     * Enqueue a link to be cleared in CloudFront cache.
+     *
+     * @param string $link The link to enqueue.
+     * @param string $distributionIds Comma-separated list of distribution IDs.
+     */
     public function enqueue(string $link, string $distributionIds): void
     {
         if ($link === '*') {
