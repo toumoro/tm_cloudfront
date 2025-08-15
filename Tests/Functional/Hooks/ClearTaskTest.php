@@ -50,7 +50,7 @@ class ClearTaskTest extends FunctionalTestCase
         parent::setUp();
 
 
-        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.xml');
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.csv');
         $this->setUpBackendUser(1);
 
         $this->importCSVDataSet(__DIR__ . '/../DataSet/tx_tmcloudfront_domain_model_invalidation.csv');
