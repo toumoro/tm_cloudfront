@@ -75,9 +75,9 @@ class ClearCachePostProc
             $this->cacheManager->cacheCmd($params);
         } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
             // when a clear cache button is clicked with a specific page ID or TsConfig command
-            
+
             // Do nothing if the page is a sysfolder
-            if($this->isSysFolder((int)$params['cacheCmd'])) {
+            if ($this->isSysFolder((int)$params['cacheCmd'])) {
                 // Do nothing if the page is a sysfolder
                 return;
             }
@@ -86,10 +86,13 @@ class ClearCachePostProc
             $distributionIds = $this->getDistributionsFromDomains($domains);
 
             $GLOBALS['BE_USER']->writelog(
-                4, 0, 0, 0,
+                4,
+                0,
+                0,
+                0,
                 'clearCachePostProc cacheCmd: ' . $uid_page .
-                ' distributionIds: ' . $distributionIds .
-                ' domains: ' . implode(',', $domains),
+                    ' distributionIds: ' . $distributionIds .
+                    ' domains: ' . implode(',', $domains),
                 "tm_cloudfront"
             );
 
@@ -136,7 +139,10 @@ class ClearCachePostProc
             }
 
             $GLOBALS['BE_USER']->writelog(
-                4, 0, 0, 0,
+                4,
+                0,
+                0,
+                0,
                 'clearCachePostProc table: ' . $table . ' distributionIds: ' . $distributionIds,
                 "tm_cloudfront"
             );
@@ -190,12 +196,14 @@ class ClearCachePostProc
         $distributionIds = $this->distributionsMapping[$domain] ?? implode(',', array_values($this->distributionsMapping));
 
         $GLOBALS['BE_USER']->writelog(
-            4, 0, 0, 0,
+            4,
+            0,
+            0,
+            0,
             'Get DistributionIds : ' . $distributionIds,
             "tm_cloudfront"
         );
 
         return $distributionIds;
     }
-
 }
