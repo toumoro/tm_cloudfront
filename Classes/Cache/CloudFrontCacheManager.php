@@ -75,15 +75,15 @@ class CloudFrontCacheManager
     /**
      * This function handles the cache clearing buttons and clearCacheCmd tsconfig
      * @param array $params
-     * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
+     * @param string|null $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
      * @return void
      */
-    protected function cacheCmd(array $params, string|null $distributionIds): void
+    public function cacheCmd(array $params, string|null $distributionIds = null): void
     {
         if (($params['cacheCmd'] ?? '') === "all" || ($params['cacheCmd'] ?? '') === "pages") {
-            $this->cacheManager->queueClearCache(0, true);
+            $this->queueClearCache(0, true);
         } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'] ?? '')) {
-            $this->cacheManager->queueClearCache((int)$params['cacheCmd'], false, $distributionIds);
+            $this->queueClearCache((int)$params['cacheCmd'], false, $distributionIds);
         }
     }
 

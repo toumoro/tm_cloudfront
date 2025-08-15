@@ -24,6 +24,7 @@ use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 
 class ClearCachePostProc
 {
@@ -55,6 +56,16 @@ class ClearCachePostProc
         // Do nothing when editor is inside a workspace
         if ($pObj->BE_USER->workspace > 0) {
             return;
+        }
+
+        // Do nothing if the page is a sysfolder
+        if ( (!empty($params['uid_page']) && MathUtility::canBeInterpretedAsInteger($params['uid_page'])) 
+                || (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) ) {
+            $uid_page = (int)$params['uid_page'] ?: (int)$params['cacheCmd'];
+            $pageRecord = BackendUtility::getRecord('pages', $uid_page, 'doktype');
+            if (!empty($pageRecord) && (int)$pageRecord['doktype'] === PageRepository::DOKTYPE_SYSFOLDER) {
+                return; // Do nothing if the page is a sysfolder
+            }
         }
 
         if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
