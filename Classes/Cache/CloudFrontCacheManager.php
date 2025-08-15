@@ -69,7 +69,7 @@ class CloudFrontCacheManager
         $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
 
         // Reset the queue after processing for testing purposes
-        $this->queue = [];
+        $this->resetQueue();
     }
 
     /**
@@ -351,5 +351,9 @@ class CloudFrontCacheManager
             $randomString .= $characters[rand(0, $charactersLength - 1)];
         }
         return $randomString;
+    }
+
+    public function resetQueue(){
+        $this->queue = [];
     }
 }

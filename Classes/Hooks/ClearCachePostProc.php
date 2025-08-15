@@ -52,6 +52,8 @@ class ClearCachePostProc
      */
     public function clearCachePostProc(&$params, &$pObj): void
     {
+        // Reset the queue after processing for testing purposes
+        $this->cacheManager->resetQueue();
 
         // Do nothing when editor is inside a workspace
         if ($pObj->BE_USER->workspace > 0) {

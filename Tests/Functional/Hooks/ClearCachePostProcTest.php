@@ -33,28 +33,20 @@ class ClearCachePostProcTest extends FunctionalTestCase
      */
     protected array $fileFolderTests;
 
+    /**
+     * @var array content and page cache invalidation tests
+     */
+    protected array $contentPageTests;
+
+    /**
+     * @var array languages
+     */
+    protected array $languages;
+
     protected ActionService $actionService;
 
     /**
-     * Default Site Configuration
-     * @var array
-     */
-    protected $siteLanguageConfiguration = [
-        1 => [
-            'title' => 'Dansk',
-            'enabled' => true,
-            'languageId' => 1,
-            'base' => '/dk/',
-            'typo3Language' => 'dk',
-            'locale' => 'da_DK.UTF-8',
-            'iso-639-1' => 'da',
-            'flag' => 'dk',
-            'fallbackType' => 'fallback',
-            'fallbacks' => '0'
-        ],
-    ];
-
-    /**
+     * pages table structure
      * +-----+-----+-------------------+------------------+-------------+----------+
      * | uid | pid | title             | sys_language_uid | l10n_parent | slug     |
      * +-----+-----+-------------------+------------------+-------------+----------+
@@ -65,16 +57,28 @@ class ClearCachePostProcTest extends FunctionalTestCase
      * |   5 |   3 | Testing 1         |                0 |           0 | /sub/sub |
      * |   6 |   3 | Sub Subpage       |                1 |           5 | /sub/sub |
      * +-----+-----+-------------------+------------------+-------------+----------+
+     * 
+     * tt_content table structure
+     * +-----+-----+-------------------+------------------+-------------+----------+
+     * | uid | pid | header            | sys_language_uid | l18n_parent | colPos   |
+     * +-----+-----+-------------------+------------------+-------------+----------+
+     * |   1 |   5 | Content 1         |                0 |           0 |        0 |
+     * |   2 |   5 | Content 2         |                1 |           1 |        0 |
+     * +-----+-----+-------------------+------------------+-------------+----------+
      **/
     protected function setUp(): void
     {
         parent::setUp();
-        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.xml');
-        $this->importCSVDataSet(__DIR__ . '/../DataSet/TranslatedSubpages.csv');
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.csv');
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/translated_subpages.csv');
         $this->importCSVDataSet(__DIR__ . '/../DataSet/sys_file_storage.csv');
-        $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/tt_content.csv');
 
         $this->fileFolderTests = Yaml::parseFile( __DIR__ . '/../Fixtures/fileFolderTests.yaml');
+        $this->contentPageTests = Yaml::parseFile( __DIR__ . '/../Fixtures/contentPageTests.yaml');
+        $this->languages = Yaml::parseFile( __DIR__ . '/../Fixtures/languages.yaml');
+
+        $this->setUpFrontendSite(1);
 
         $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront'] = [
             'distributionIds' => '{"www.example.com":"WWWWWWWWW","en.example.com":"ENENENENENEN","cdn.example.com":"CDNCDNCDNCDN","dk.example.com":"DKDKDKDKDKDK"}',
@@ -98,67 +102,74 @@ class ClearCachePostProcTest extends FunctionalTestCase
     }
 
     /**
-     * Test simple génération d’URL
+     * Modify page or content and check if invalidation is created for simple domain
      */
     #[\PHPUnit\Framework\Attributes\Test]
-    public function generateUrl(): void
+    public function modifyTest(): void
     {
-        // Nettoyer les invalidations existantes
-        GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
-            ->truncate('tx_tmcloudfront_domain_model_invalidation');
-
         $this->setUpBackendUser(1);
+        $this->setUpFrontendSite(1);
         $this->actionService = $this->getActionService();
 
-        $this->actionService->modifyRecord(
-            'pages',
-            5,
-            ['title' => 'Testing 1']
-        );
+        foreach ($this->contentPageTests['simple'] as $table => $rows) {
+            foreach ($rows as $row) {
+                var_dump('Testing ' . $table . ' uid: ' . $row['uid'] . ' simple');
+                // Nettoyer les invalidations existantes
+                GeneralUtility::makeInstance(ConnectionPool::class)
+                    ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
+                    ->truncate('tx_tmcloudfront_domain_model_invalidation');
+                
+                $this->actionService->modifyRecord(
+                    $table,
+                    $row['uid'],
+                    $row['modification']
+                );
 
-        $expectedArray = [
-            ['pathsegment' => '/en/sub*','distributionId' => 'WWWWWWWWW'],
-            ['pathsegment' => '/dk/subtest*','distributionId' => 'WWWWWWWWW']
-        ];
+                $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
+                $this->assertCount(count($row['expectedArray']), $allRecords, 'Nombre d’invalidation incorrect');
 
-        $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
+                foreach ($row['expectedArray'] as $expectedRow) {
+                    $this->checkInvalidation($expectedRow);
+                }
 
-        $this->assertCount(2, $allRecords, 'Nombre d’invalidation incorrect');
 
-        foreach ($expectedArray as $expectedRow) {
-            $this->checkInvalidation($expectedRow);
+            }
         }
     }
 
     /**
-     * Test multi-domaines (1 domaine par langue)
+     * Modify page or content and check if invalidation is created for multi-domain
      */
     #[\PHPUnit\Framework\Attributes\Test]
-    public function generateUrlWithMultiDomainLanguages(): void
-    {   
-        // Nettoyer les invalidations existantes
-        GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
-            ->truncate('tx_tmcloudfront_domain_model_invalidation');
-
-        $this->setUpMultiDomainFrontendSite(1);
+    public function modifyMultiTest(): void
+    {
         $this->setUpBackendUser(1);
-
+        $this->setUpFrontendSite(1,'multiDomain');
         $this->actionService = $this->getActionService();
-        $this->actionService->modifyRecord('pages', 5, ['title' => 'Multi-domain Test']);
 
-        $expectedArray = [
-            ['pathsegment' => '/sub*','distributionId' => 'ENENENENENEN'],
-            ['pathsegment' => '/subtest*','distributionId' => 'DKDKDKDKDKDK']
-        ];
+        foreach ($this->contentPageTests['multiDomain'] as $table => $rows) {
+            foreach ($rows as $row) {
+                var_dump('Testing ' . $table . ' uid: ' . $row['uid'] . ' multiDomain');
+                // Nettoyer les invalidations existantes
+                GeneralUtility::makeInstance(ConnectionPool::class)
+                    ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
+                    ->truncate('tx_tmcloudfront_domain_model_invalidation');
+                
+                $this->actionService->modifyRecord(
+                    $table,
+                    $row['uid'],
+                    $row['modification']
+                );
 
-        $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
+                $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
+                $this->assertCount(count($row['expectedArray']), $allRecords, 'Nombre d’invalidation incorrect');
 
-        $this->assertCount(2, $allRecords, 'Nombre d’invalidation incorrect');
+                foreach ($row['expectedArray'] as $expectedRow) {
+                    $this->checkInvalidation($expectedRow);
+                }
 
-        foreach ($expectedArray as $expectedRow) {
-            $this->checkInvalidation($expectedRow);
+
+            }
         }
     }
 
@@ -417,73 +428,15 @@ class ClearCachePostProcTest extends FunctionalTestCase
     }
 
     /**
-     * Site config simple
+     * Site config simple or multi-domain
      */
-    protected function setUpFrontendSite(int $pageId, array $additionalLanguages = [])
+    protected function setUpFrontendSite(int $pageId, string|null $type = 'simple'): void
     {
-        $languages = [
-            0 => [
-                'title' => 'English',
-                'enabled' => true,
-                'languageId' => 0,
-                'base' => '/en/',
-                'typo3Language' => 'default',
-                'locale' => 'en_US.UTF-8',
-                'iso-639-1' => 'en',
-                'navigationTitle' => '',
-                'hreflang' => '',
-                'direction' => '',
-                'flag' => 'us',
-            ]
-        ];
-        $languages = array_merge($languages, $additionalLanguages);
+        $domain = $type === 'simple' ? 'www.example.com' : '/';
         $configuration = [
             'rootPageId' => $pageId,
-            'base' => '//www.example.com/',
-            'languages' => $languages,
-            'errorHandling' => [],
-            'routes' => [],
-        ];
-        GeneralUtility::mkdir_deep($this->instancePath . '/typo3conf/sites/testing/');
-        GeneralUtility::writeFile(
-            $this->instancePath . '/typo3conf/sites/testing/config.yaml',
-            Yaml::dump($configuration, 99, 2)
-        );
-        GeneralUtility::makeInstance(CacheManager::class)->getCache('core')->remove('sites-configuration');
-    }
-
-    /**
-     * Site config multi-domaines
-     */
-    protected function setUpMultiDomainFrontendSite(int $pageId): void
-    {
-        $languages = [
-            0 => [
-                'title' => 'English',
-                'enabled' => true,
-                'languageId' => 0,
-                'base' => 'https://en.example.com/',
-                'typo3Language' => 'default',
-                'locale' => 'en_US.UTF-8',
-                'iso-639-1' => 'en',
-                'flag' => 'us',
-            ],
-            1 => [
-                'title' => 'Dansk',
-                'enabled' => true,
-                'languageId' => 1,
-                'base' => 'https://dk.example.com/',
-                'typo3Language' => 'dk',
-                'locale' => 'da_DK.UTF-8',
-                'iso-639-1' => 'da',
-                'flag' => 'dk',
-            ],
-        ];
-
-        $configuration = [
-            'rootPageId' => $pageId,
-            'base' => '/',
-            'languages' => $languages,
+            'base' => $domain,
+            'languages' => $this->languages[$type],
             'errorHandling' => [],
             'routes' => [],
         ];
