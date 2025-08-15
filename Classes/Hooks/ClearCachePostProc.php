@@ -61,19 +61,26 @@ class ClearCachePostProc
         }
 
         // Do nothing if the page is a sysfolder
-        if ( (!empty($params['uid_page']) && MathUtility::canBeInterpretedAsInteger($params['uid_page'])) 
+        /* if ( (!empty($params['uid_page']) && MathUtility::canBeInterpretedAsInteger($params['uid_page'])) 
                 || (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) ) {
             $uid_page = (int)$params['uid_page'] ?: (int)$params['cacheCmd'];
             $pageRecord = BackendUtility::getRecord('pages', $uid_page, 'doktype');
             if (!empty($pageRecord) && (int)$pageRecord['doktype'] === PageRepository::DOKTYPE_SYSFOLDER) {
                 return; // Do nothing if the page is a sysfolder
             }
-        }
+        } */
 
         if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
             // when a clear cache button is clicked
             $this->cacheManager->cacheCmd($params);
         } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
+            // when a clear cache button is clicked with a specific page ID or TsConfig command
+            
+            // Do nothing if the page is a sysfolder
+            if($this->isSysFolder((int)$params['cacheCmd'])) {
+                // Do nothing if the page is a sysfolder
+                return;
+            }
             $uid_page = (int)$params['cacheCmd'];
             $domains = $this->cacheManager->getLanguagesDomains($uid_page);
             $distributionIds = $this->getDistributionsFromDomains($domains);
@@ -101,16 +108,24 @@ class ClearCachePostProc
 
             // If the record is not a page, enqueue only the current page
             if ($table !== 'pages') {
+                if ($this->isSysFolder($uid_page)) {
+                    // Do nothing if the page is a sysfolder
+                    return;
+                }
                 $this->cacheManager->queueClearCache($uid_page, false, $distributionIds);
             } else {
-                if (!$tsConfig['clearCache_disable']) {
-                    if (is_numeric($parentId)) {
-                        $this->cacheManager->queueClearCache((int)$parentId, true, $distributionIds);
-                    } else {
-                        // pid has no valid value: value is no integer or value is a negative integer (-1)
-                        return;
-                    }
+                // If the record is a page, enqueue the parent page
+                if (
+                    !$tsConfig['clearCache_disable']
+                    && is_numeric($parentId)
+                    && !$this->isSysFolder((int)$uid_page)
+                ) {
+                    $this->cacheManager->queueClearCache((int)$parentId, true, $distributionIds);
+                } else {
+                    // soit clearCache désactivé, soit pid invalide, soit page dossier système
+                    return;
                 }
+
                 // Clear cache for pages entered in TSconfig:
                 if (!empty($tsConfig['clearCacheCmd'])) {
                     $commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), true);
@@ -128,6 +143,12 @@ class ClearCachePostProc
         }
 
         $this->cacheManager->clearCache();
+    }
+
+    protected function isSysFolder(int $uid_page): bool
+    {
+        $pageRecord = BackendUtility::getRecord('pages', $uid_page, 'doktype');
+        return !empty($pageRecord) && (int)$pageRecord['doktype'] === PageRepository::DOKTYPE_SYSFOLDER;
     }
 
     protected function getDistributionsFromDomains(array $domains): string

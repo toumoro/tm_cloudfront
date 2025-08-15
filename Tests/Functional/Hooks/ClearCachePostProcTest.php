@@ -126,13 +126,17 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 );
 
                 $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
-                $this->assertCount(count($row['expectedArray']), $allRecords, 'Nombre d’invalidation incorrect');
-
-                foreach ($row['expectedArray'] as $expectedRow) {
-                    $this->checkInvalidation($expectedRow);
+                var_dump('all records');
+                foreach ($allRecords as $record) {
+                    var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
                 }
+                $this->assertCount(count($row['expectedArray']??[]), $allRecords, 'Nombre d’invalidation incorrect');
 
-
+                if(isset($row['expectedArray'])) {
+                    foreach ($row['expectedArray'] as $expectedRow) {
+                        $this->checkInvalidation($expectedRow);
+                    }
+                }
             }
         }
     }
@@ -162,10 +166,16 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 );
 
                 $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
-                $this->assertCount(count($row['expectedArray']), $allRecords, 'Nombre d’invalidation incorrect');
+                var_dump('all records');
+                foreach ($allRecords as $record) {
+                    var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
+                }
+                $this->assertCount(count($row['expectedArray']??[]), $allRecords, 'Nombre d’invalidation incorrect');
 
-                foreach ($row['expectedArray'] as $expectedRow) {
-                    $this->checkInvalidation($expectedRow);
+                if(isset($row['expectedArray'])) {
+                    foreach ($row['expectedArray'] as $expectedRow) {
+                        $this->checkInvalidation($expectedRow);
+                    }
                 }
 
 

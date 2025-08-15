@@ -8,6 +8,9 @@ simple:
           distributionId: 'WWWWWWWWW'
         - pathsegment: '/dk/subtest*'
           distributionId: 'WWWWWWWWW'
+    - uid: 7
+      modification: 
+        title: 'Renaming sysfolder'
   tt_content:
   - uid: 1
     modification:
@@ -17,6 +20,9 @@ simple:
         distributionId: 'WWWWWWWWW'
       - pathsegment: '/dk/sub/subd'
         distributionId: 'WWWWWWWWW'
+  - uid: 3
+    modification:
+      header: 'SysFolder Content modified'
 multiDomain:  
   pages:
     - uid: 5
