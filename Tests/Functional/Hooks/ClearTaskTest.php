@@ -31,6 +31,7 @@ class ClearTaskTest extends FunctionalTestCase
         'toumoro/tm-cloudfront',
         'typo3/cms-scheduler'
     ];
+    protected ?array $cloudFrontConfiguration;
 
     /**
      * +-----+-----+-------------------+------------------+-------------+----------+
@@ -48,6 +49,11 @@ class ClearTaskTest extends FunctionalTestCase
     {
         parent::setUp();
 
+
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/be_users.xml');
+        $this->setUpBackendUser(1);
+
+        $this->importCSVDataSet(__DIR__ . '/../DataSet/tx_tmcloudfront_domain_model_invalidation.csv');
         $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront'] = [
             'distributionIds' => '{"www.example.com":"WWWWWWWWW","en.example.com":"ENENENENENEN","cdn.example.com":"CDNCDNCDNCDN","dk.example.com":"DKDKDKDKDKDK"}',
             'mode' => 'table',
@@ -78,9 +84,22 @@ class ClearTaskTest extends FunctionalTestCase
             ],
             'handler' => new MockHandler([
                 new Result(['Invalidation' => ['Id' => 'ID1234567890']]),
+                new Result(['Invalidation' => ['Id' => 'ID1234567891']]),
+                new Result(['Invalidation' => ['Id' => 'ID1234567892']]),
+                new Result(['Invalidation' => ['Id' => 'ID1234567893']]),
+                new Result(['Invalidation' => ['Id' => 'ID1234567894']]),
+                new Result(['Invalidation' => ['Id' => 'ID1234567895']]),
             ]),
         ];
-        $taskClass->cloudFrontClient = GeneralUtility::makeInstance(CloudFrontClient::class, $options);
+        $taskClass->setCloudfrontClient(GeneralUtility::makeInstance(CloudFrontClient::class, $options));
         $taskClass->execute();
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
+        $rows = $queryBuilder
+            ->select('uid', 'pathsegment')
+            ->from('tx_tmcloudfront_domain_model_invalidation')
+            ->executeQuery()
+            ->fetchAllAssociative();
+        $this->assertCount(0, $rows, 'Nombre d’invalidation incorrect');
     }
 }
