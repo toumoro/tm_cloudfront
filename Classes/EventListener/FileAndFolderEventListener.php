@@ -1,5 +1,20 @@
 <?php
 
+/**
+ * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
+ * @author Simon Ouellet <simon.ouellet@toumoro.com>
+ *         Mehdi Guermazi <mehdi.guermazi@toumoro.com>
+ *
+ *
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ *  (c) 2025 Toumoro
+ *
+ ***/
+
 namespace Toumoro\TmCloudfront\EventListener;
 
 use Toumoro\TmCloudfront\Cache\CloudFrontCacheManager;

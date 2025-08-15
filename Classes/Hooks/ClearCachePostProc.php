@@ -1,5 +1,20 @@
 <?php
 
+/**
+ * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
+ * @author Simon Ouellet <simon.ouellet@toumoro.com>
+ *         Mehdi Guermazi <mehdi.guermazi@toumoro.com>
+ *
+ *
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ *  (c) 2025 Toumoro
+ *
+ ***/
+
 namespace Toumoro\TmCloudfront\Hooks;
 
 use Toumoro\TmCloudfront\Cache\CloudFrontCacheManager;
@@ -21,18 +36,30 @@ class ClearCachePostProc
     {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)
             ->get('tm_cloudfront')['cloudfront'];
-        $this->distributionsMapping = $this->resolveDistributionIds();
         $this->cacheManager = GeneralUtility::makeInstance(CloudFrontCacheManager::class);
+        $this->distributionsMapping = $this->cacheManager->resolveDistributionIds();
     }
 
+    /**
+     * Clear cache post processor.
+     * The same structure as DataHandler::clear_cache
+     *
+     * @param    array       $params : parameter array
+     * @param    DataHandler $pObj   : partent object
+     *
+     * @return    void
+     */
     public function clearCachePostProc(&$params, &$pObj): void
     {
+
+        // Do nothing when editor is inside a workspace
         if ($pObj->BE_USER->workspace > 0) {
             return;
         }
 
         if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
-            $this->cacheCmd($params);
+            // when a clear cache button is clicked
+            $this->cacheManager->cacheCmd($params);
         } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
             $uid_page = (int)$params['cacheCmd'];
             $domains = $this->cacheManager->getLanguagesDomains($uid_page);
@@ -46,7 +73,7 @@ class ClearCachePostProc
                 "tm_cloudfront"
             );
 
-            $this->cacheCmd($params, $distributionIds);
+            $this->cacheManager->cacheCmd($params, $distributionIds);
         } else {
             $uid_page = (int)($params['uid_page'] ?? 0);
             $table = (string)($params['table'] ?? '');
@@ -54,10 +81,12 @@ class ClearCachePostProc
             $tsConfig = BackendUtility::getPagesTSconfig($parentId);
             $distributionIds = $this->getDistributionIds($uid_page, $params);
 
+            // Priority to TsConfig settings
             if (!empty($tsConfig['distributionIds'])) {
                 $distributionIds = $tsConfig['distributionIds'];
             }
 
+            // If the record is not a page, enqueue only the current page
             if ($table !== 'pages') {
                 $this->cacheManager->queueClearCache($uid_page, false, $distributionIds);
             } else {
@@ -65,6 +94,7 @@ class ClearCachePostProc
                     if (is_numeric($parentId)) {
                         $this->cacheManager->queueClearCache((int)$parentId, true, $distributionIds);
                     } else {
+                        // pid has no valid value: value is no integer or value is a negative integer (-1)
                         return;
                     }
                 }
@@ -72,7 +102,7 @@ class ClearCachePostProc
                 if (!empty($tsConfig['clearCacheCmd'])) {
                     $commands = GeneralUtility::trimExplode(',', strtolower($tsConfig['clearCacheCmd']), true);
                     foreach (array_unique($commands) as $cmdPart) {
-                        $this->cacheCmd(['cacheCmd' => $cmdPart], $distributionIds);
+                        $this->cacheManager->cacheCmd(['cacheCmd' => $cmdPart], $distributionIds);
                     }
                 }
             }
@@ -98,6 +128,13 @@ class ClearCachePostProc
         return implode(',', $distributionIds);
     }
 
+    /**
+     * Get distribution IDs based on the page ID and parameters.
+     *
+     * @param int $uid_page The UID of the page.
+     * @param array $params Additional parameters that may contain table and uid.
+     * @return string Comma-separated list of distribution IDs.
+     */
     protected function getDistributionIds(int $uid_page, array $params): string
     {
         $domain = '';
@@ -127,30 +164,4 @@ class ClearCachePostProc
         return $distributionIds;
     }
 
-    protected function resolveDistributionIds(): array
-    {
-        $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
-        if ($mapping && is_string($mapping) && $mapping[0] === '{') {
-            $mappingArray = json_decode($mapping, true);
-            if (is_array($mappingArray)) {
-                return $mappingArray;
-            }
-        }
-        return explode(',', $mapping);
-    }
-
-    /**
-     * This function handles the cache clearing buttons and clearCacheCmd tsconfig
-     * @param array $params
-     * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
-     * @return void
-     */
-    protected function cacheCmd(array $params, string|null $distributionIds): void
-    {
-        if (($params['cacheCmd'] ?? '') === "all" || ($params['cacheCmd'] ?? '') === "pages") {
-            $this->cacheManager->queueClearCache(0, true);
-        } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'] ?? '')) {
-            $this->cacheManager->queueClearCache((int)$params['cacheCmd'], false, $distributionIds);
-        }
-    }
 }

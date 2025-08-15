@@ -1,5 +1,20 @@
 <?php
 
+/**
+ * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
+ * @author Simon Ouellet <simon.ouellet@toumoro.com>
+ *         Mehdi Guermazi <mehdi.guermazi@toumoro.com>
+ *
+ *
+ * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ *  (c) 2025 Toumoro
+ *
+ ***/
+
 namespace Toumoro\TmCloudfront\Cache;
 
 use TYPO3\CMS\Core\Resource\Folder;
@@ -55,6 +70,21 @@ class CloudFrontCacheManager
 
         // Reset the queue after processing for testing purposes
         $this->queue = [];
+    }
+
+    /**
+     * This function handles the cache clearing buttons and clearCacheCmd tsconfig
+     * @param array $params
+     * @param array $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
+     * @return void
+     */
+    protected function cacheCmd(array $params, string|null $distributionIds): void
+    {
+        if (($params['cacheCmd'] ?? '') === "all" || ($params['cacheCmd'] ?? '') === "pages") {
+            $this->cacheManager->queueClearCache(0, true);
+        } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'] ?? '')) {
+            $this->cacheManager->queueClearCache((int)$params['cacheCmd'], false, $distributionIds);
+        }
     }
 
     /**
@@ -165,11 +195,11 @@ class CloudFrontCacheManager
     }
 
     /**
-     * Retourne le(s) distributionId(s) à utiliser selon le domaine et la config
+     * Returns the distributionId(s) to use based on the domain and config
      *
-     * @return string
+     * @return array
      */
-    protected function resolveDistributionIds(): array
+    public function resolveDistributionIds(): array
     {
         $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
         if ($mapping && is_string($mapping) && $mapping[0] === '{') {
@@ -273,7 +303,13 @@ class CloudFrontCacheManager
         return $url;
     }
 
-    protected function getLanguagesDomains(int $uid_page): array
+    /**
+     * Get the domains for all languages of a page.
+     *
+     * @param int $uid_page The UID of the page.
+     * @return array An associative array of language IDs and their corresponding domains.
+     */
+    public function getLanguagesDomains(int $uid_page): array
     {
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $domains = [];
@@ -283,7 +319,13 @@ class CloudFrontCacheManager
         return $domains;
     }
 
-    protected function isMultiLanguageDomains(int $uid_page): bool
+    /**
+     * Check if the page has multiple languages with different domains.
+     *
+     * @param int $uid_page The UID of the page.
+     * @return bool True if there are multiple languages with different domains, false otherwise.
+     */
+    public function isMultiLanguageDomains(int $uid_page): bool
     {
         $multi = true;
         $domains = $this->getLanguagesDomains($uid_page);
