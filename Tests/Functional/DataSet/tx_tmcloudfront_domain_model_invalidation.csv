@@ -1,0 +1,6 @@
+"tx_tmcloudfront_domain_model_invalidation",,,
+,"pathsegment","distributionId","uid"
+,"/example/path/segment1","WWWWWWWWW",1
+,"/*","ENENENENENEN",2
+,"/example/path/segment3","DKDKDKDKDKDK",3
+

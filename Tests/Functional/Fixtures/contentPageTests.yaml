@@ -1,0 +1,44 @@
+simple:
+  pages:
+    - uid: 5
+      modification: 
+        title: 'Testing 1'
+      expectedArray:
+        - pathsegment: '/en/sub*'
+          distributionId: 'WWWWWWWWW'
+        - pathsegment: '/dk/subtest*'
+          distributionId: 'WWWWWWWWW'
+    - uid: 7
+      modification: 
+        title: 'Renaming sysfolder'
+  tt_content:
+  - uid: 1
+    modification:
+      header: 'Content 1 modified'
+    expectedArray:
+      - pathsegment: '/en/sub/sub'
+        distributionId: 'WWWWWWWWW'
+      - pathsegment: '/dk/sub/subd'
+        distributionId: 'WWWWWWWWW'
+  - uid: 3
+    modification:
+      header: 'SysFolder Content modified'
+multiDomain:  
+  pages:
+    - uid: 5
+      modification: 
+        title: 'Multi-domain Test'
+      expectedArray:
+        - pathsegment: '/sub*'
+          distributionId: 'ENENENENENEN'
+        - pathsegment: '/subtest*'
+          distributionId: 'DKDKDKDKDKDK'
+  tt_content:
+    - uid: 2
+      modification:
+        header: 'Content 1 Multi-domain Test'
+      expectedArray:
+        - pathsegment: '/sub/sub'
+          distributionId: 'ENENENENENEN'
+        - pathsegment: '/sub/subd'
+          distributionId: 'DKDKDKDKDKDK'
