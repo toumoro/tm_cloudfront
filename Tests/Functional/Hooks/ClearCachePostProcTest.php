@@ -8,6 +8,7 @@
 namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
 
 
+use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
@@ -74,9 +75,9 @@ class ClearCachePostProcTest extends FunctionalTestCase
         $this->importCSVDataSet(__DIR__ . '/../DataSet/sys_file_storage.csv');
         $this->importCSVDataSet(__DIR__ . '/../DataSet/tt_content.csv');
 
-        $this->fileFolderTests = Yaml::parseFile( __DIR__ . '/../Fixtures/fileFolderTests.yaml');
-        $this->contentPageTests = Yaml::parseFile( __DIR__ . '/../Fixtures/contentPageTests.yaml');
-        $this->languages = Yaml::parseFile( __DIR__ . '/../Fixtures/languages.yaml');
+        $this->fileFolderTests = Yaml::parseFile(__DIR__ . '/../Fixtures/fileFolderTests.yaml');
+        $this->contentPageTests = Yaml::parseFile(__DIR__ . '/../Fixtures/contentPageTests.yaml');
+        $this->languages = Yaml::parseFile(__DIR__ . '/../Fixtures/languages.yaml');
 
         $this->setUpFrontendSite(1);
 
@@ -102,6 +103,19 @@ class ClearCachePostProcTest extends FunctionalTestCase
     }
 
     /**
+     * Simulate clear cache for pages button
+     * fixes UnexpectedValueException: ConnectionPool->getQueryBuilderForTable() requires a connection name to be provided.
+     */
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function testClearPagesCache(): void
+    {
+        $this->setUpBackendUser(1);
+        $tce = GeneralUtility::makeInstance(DataHandler::class);
+        $tce->start([], []);
+        $tce->clear_cacheCmd("pages");
+    }
+
+    /**
      * Modify page or content and check if invalidation is created for simple domain
      */
     #[\PHPUnit\Framework\Attributes\Test]
@@ -118,7 +132,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 GeneralUtility::makeInstance(ConnectionPool::class)
                     ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
                     ->truncate('tx_tmcloudfront_domain_model_invalidation');
-                
+
                 $this->actionService->modifyRecord(
                     $table,
                     $row['uid'],
@@ -130,9 +144,9 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 foreach ($allRecords as $record) {
                     var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
                 }
-                $this->assertCount(count($row['expectedArray']??[]), $allRecords, 'Nombre d’invalidation incorrect');
+                $this->assertCount(count($row['expectedArray'] ?? []), $allRecords, 'Nombre d’invalidation incorrect');
 
-                if(isset($row['expectedArray'])) {
+                if (isset($row['expectedArray'])) {
                     foreach ($row['expectedArray'] as $expectedRow) {
                         $this->checkInvalidation($expectedRow);
                     }
@@ -148,7 +162,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
     public function modifyMultiTest(): void
     {
         $this->setUpBackendUser(1);
-        $this->setUpFrontendSite(1,'multiDomain');
+        $this->setUpFrontendSite(1, 'multiDomain');
         $this->actionService = $this->getActionService();
 
         foreach ($this->contentPageTests['multiDomain'] as $table => $rows) {
@@ -158,7 +172,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 GeneralUtility::makeInstance(ConnectionPool::class)
                     ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
                     ->truncate('tx_tmcloudfront_domain_model_invalidation');
-                
+
                 $this->actionService->modifyRecord(
                     $table,
                     $row['uid'],
@@ -170,15 +184,13 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 foreach ($allRecords as $record) {
                     var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
                 }
-                $this->assertCount(count($row['expectedArray']??[]), $allRecords, 'Nombre d’invalidation incorrect');
+                $this->assertCount(count($row['expectedArray'] ?? []), $allRecords, 'Nombre d’invalidation incorrect');
 
-                if(isset($row['expectedArray'])) {
+                if (isset($row['expectedArray'])) {
                     foreach ($row['expectedArray'] as $expectedRow) {
                         $this->checkInvalidation($expectedRow);
                     }
                 }
-
-
             }
         }
     }
@@ -214,10 +226,10 @@ class ClearCachePostProcTest extends FunctionalTestCase
             __DIR__ . '/../Fixtures/sample.txt',
             'contenu texte'
         );
-        
+
         // Créer un sous-dossier 'test_fileReplaced_folder' pour les fichiers du test
         $folder = $storage->hasFolder('test_fileReplaced_folder') ? $storage->getFolder('test_fileReplaced_folder') : $storage->createFolder('test_fileReplaced_folder');
-        
+
         // Ajouter un fichier
         $sourceFile = __DIR__ . '/../Fixtures/sample.txt';
         $storageFile = $storage->addFile($sourceFile, $folder, 'replacedfile.txt');
@@ -237,7 +249,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
         foreach ($expectedRows as $expectedRow) {
             $this->checkInvalidation($expectedRow);
         }
-
     }
 
     public function afterFileMoved($storage, array $expectedRows): void
@@ -417,10 +428,10 @@ class ClearCachePostProcTest extends FunctionalTestCase
     protected function checkInvalidation(array $expectedRow): void
     {
         $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
+            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
         $queryBuilder = $connection->createQueryBuilder();
         $queryBuilder
-            ->select('pathsegment','distributionId')
+            ->select('pathsegment', 'distributionId')
             ->from('tx_tmcloudfront_domain_model_invalidation')
             ->where(
                 $queryBuilder->expr()->eq(
