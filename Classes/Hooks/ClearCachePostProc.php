@@ -70,7 +70,7 @@ class ClearCachePostProc
             }
         } */
 
-        if (isset($params['cacheCmd']) && $params['cacheCmd'] == 'all') {
+        if (isset($params['cacheCmd']) && (in_array($params['cacheCmd'], ['all', 'pages']))) {
             // when a clear cache button is clicked
             $this->cacheManager->cacheCmd($params);
         } elseif (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) {
