@@ -113,6 +113,8 @@ class ClearCachePostProcTest extends FunctionalTestCase
         $tce = GeneralUtility::makeInstance(DataHandler::class);
         $tce->start([], []);
         $tce->clear_cacheCmd("pages");
+        $rows = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
+        $this->assertCount(4, $rows, 'Nombre d’invalidation incorrect');
     }
 
     /**

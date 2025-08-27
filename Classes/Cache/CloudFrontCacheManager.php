@@ -19,6 +19,8 @@ namespace Toumoro\TmCloudfront\Cache;
 
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\ProcessedFile;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Connection;
@@ -48,10 +50,10 @@ class CloudFrontCacheManager
      * This function handles the cache clearing for files and folders.
      * It enqueues the resource identifier and distribution IDs for invalidation.
      * 
-     * @param Folder|File $resource The resource that has been modified.
+     * @param Folder|File|ProcessedFile $resource The resource that has been modified.
      * @return void
      */
-    public function fileMod(Folder|File $resource): void
+    public function fileMod(Folder|File|ProcessedFile $resource): void
     {
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
@@ -229,7 +231,7 @@ class CloudFrontCacheManager
      */
     public function queueClearCache(int $pageId, bool $recursive = false, string|null $distributionIds = null)
     {
-        $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: '.$distributionIds;
+        $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: ' . $distributionIds;
         $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
 
         $wildcard = '';
@@ -250,26 +252,25 @@ class CloudFrontCacheManager
             $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
 
             if (count($languages) > 0) {
-                if($this->isMultiLanguageDomains($entry)){
+                if ($this->isMultiLanguageDomains($entry)) {
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
                         }
                     }
-                } else{
+                } else {
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
-                    $errorMessage = 'queueClearCache enque lang: 0  distributionIds: '.$distributionIds;
+                    $errorMessage = 'queueClearCache enque lang: 0  distributionIds: ' . $distributionIds;
                     $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
-                            $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: '.$distributionIds;
+                            $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: ' . $distributionIds;
                             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
                         }
                     }
                 }
-                
             } else {
                 $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
             }
@@ -329,7 +330,7 @@ class CloudFrontCacheManager
     {
         $multi = true;
         $domains = $this->getLanguagesDomains($uid_page);
-        foreach ($domains as $lang => $domain){
+        foreach ($domains as $lang => $domain) {
             if (strpos($domain, '.') === false) {
                 $multi = false;
             }
@@ -353,7 +354,8 @@ class CloudFrontCacheManager
         return $randomString;
     }
 
-    public function resetQueue(){
+    public function resetQueue()
+    {
         $this->queue = [];
     }
 }
