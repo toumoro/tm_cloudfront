@@ -17,6 +17,7 @@
 
 namespace Toumoro\TmCloudfront\Hooks;
 
+use Doctrine\DBAL\ParameterType;
 use Toumoro\TmCloudfront\Cache\CloudFrontCacheManager;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -33,7 +34,9 @@ class ClearCachePostProc
 
     protected CloudFrontCacheManager $cacheManager;
 
-    public function __construct()
+    public function __construct(
+        protected SiteFinder $siteFinder
+    )
     {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)
             ->get('tm_cloudfront')['cloudfront'];
@@ -105,8 +108,10 @@ class ClearCachePostProc
             $distributionIds = $this->getDistributionIds($uid_page, $params);
 
             // Priority to TsConfig settings
-            if (!empty($tsConfig['distributionIds'])) {
-                $distributionIds = $tsConfig['distributionIds'];
+            if (!empty($tsConfig['TCEMAIN.'])) {
+                if(!empty($tsConfig['TCEMAIN.']['distributionIds'])) {
+                    $distributionIds = $tsConfig['TCEMAIN.']['distributionIds'];
+                }
             }
 
             // If the record is not a page, enqueue only the current page
@@ -178,8 +183,10 @@ class ClearCachePostProc
     protected function getDistributionIds(int $uid_page, array $params): string
     {
         $domain = '';
-        if ($uid_page > 0 && isset($params['table'], $params['uid'])) {
-            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
+
+        if ($uid_page > 0 && isset($params['table'], $params['uid']) && !$this->isPageDeleted($uid_page)) {
+            $site = $this->siteFinder->getSiteByPageId($uid_page);
+
             $row = GeneralUtility::makeInstance(ConnectionPool::class)
                 ->getQueryBuilderForTable($params['table'])
                 ->select('*')
@@ -205,5 +212,25 @@ class ClearCachePostProc
         );
 
         return $distributionIds;
+    }
+
+    private function isPageDeleted($uid): int
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('pages');
+
+        $queryBuilder->getRestrictions()->removeAll();
+
+       return (int)$queryBuilder
+            ->select('deleted')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'uid',
+                    $queryBuilder->createNamedParameter($uid, ParameterType::INTEGER)
+                )
+            )
+            ->executeQuery()
+            ->fetchOne();
     }
 }

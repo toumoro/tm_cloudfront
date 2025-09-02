@@ -253,7 +253,7 @@ class CloudFrontCacheManager
 
             if (count($languages) > 0) {
                 if ($this->isMultiLanguageDomains($entry)) {
-                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$languages[0]->getBase()->getHost()]);
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[(string)$languages[0]->getBase()->getHost()]);
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
@@ -327,15 +327,10 @@ class CloudFrontCacheManager
      * @return bool True if there are multiple languages with different domains, false otherwise.
      */
     public function isMultiLanguageDomains(int $uid_page): bool
-    {
-        $multi = true;
+    {;
         $domains = $this->getLanguagesDomains($uid_page);
-        foreach ($domains as $lang => $domain) {
-            if (strpos($domain, '.') === false) {
-                $multi = false;
-            }
-        }
-        return $multi;
+        
+        return count(array_unique(array_map('strtolower', $domains))) > 1;
     }
 
     /**
