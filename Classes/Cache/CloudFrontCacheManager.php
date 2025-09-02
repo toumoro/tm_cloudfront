@@ -327,15 +327,10 @@ class CloudFrontCacheManager
      * @return bool True if there are multiple languages with different domains, false otherwise.
      */
     public function isMultiLanguageDomains(int $uid_page): bool
-    {
-        $multi = true;
+    {;
         $domains = $this->getLanguagesDomains($uid_page);
-        foreach ($domains as $lang => $domain) {
-            if (strpos($domain, '.') === false) {
-                $multi = false;
-            }
-        }
-        return $multi;
+        
+        return count(array_unique(array_map('strtolower', $domains))) > 1;
     }
 
     /**
