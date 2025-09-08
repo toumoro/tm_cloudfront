@@ -102,11 +102,11 @@ class ClearTask extends AbstractTask
                     ]
                 ]
             ]);
-            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, 'successful invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').', "tm_cloudfront");
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, 'successful invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').', ["ext" => "tm_cloudfront"]);
             $queryBuilder->delete('tx_tmcloudfront_domain_model_invalidation')->where($queryBuilder->expr()->in('uid', $uids))->executeStatement();
         } catch (\Exception $e) {
             print_r($e->getMessage());
-            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, 'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').', "tm_cloudfront");
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, 'exception for invalidation paths :' . implode(', ', $pathsegments) . ' (' . $distId . ').', ["ext" => "tm_cloudfront"]);
         }
     }
 

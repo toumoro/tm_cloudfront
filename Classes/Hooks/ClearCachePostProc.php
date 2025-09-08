@@ -96,7 +96,7 @@ class ClearCachePostProc
                 'clearCachePostProc cacheCmd: ' . $uid_page .
                     ' distributionIds: ' . $distributionIds .
                     ' domains: ' . implode(',', $domains),
-                "tm_cloudfront"
+                ["ext" => "tm_cloudfront"]
             );
 
             $this->cacheManager->cacheCmd($params, $distributionIds);
@@ -149,7 +149,7 @@ class ClearCachePostProc
                 0,
                 0,
                 'clearCachePostProc table: ' . $table . ' distributionIds: ' . $distributionIds,
-                "tm_cloudfront"
+                ["ext" => "tm_cloudfront"]
             );
         }
 
@@ -208,7 +208,7 @@ class ClearCachePostProc
             0,
             0,
             'Get DistributionIds : ' . $distributionIds,
-            "tm_cloudfront"
+            ["ext" => "tm_cloudfront"]
         );
 
         return $distributionIds;
