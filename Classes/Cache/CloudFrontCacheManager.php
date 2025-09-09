@@ -20,7 +20,6 @@ namespace Toumoro\TmCloudfront\Cache;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
-
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Connection;
@@ -68,7 +67,7 @@ class CloudFrontCacheManager
         $this->clearCache();
 
         $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
-        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
 
         // Reset the queue after processing for testing purposes
         $this->resetQueue();
@@ -164,7 +163,7 @@ class CloudFrontCacheManager
                 } catch (\Exception $e) {
                     // log error: could not create invalidation
                     $errorMessage = 'Could not create invalidation for distribution ID ' . $distId . ': ' . $e->getMessage();
-                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
                 }
             } else {
                 foreach ($paths as $k => $value) {
@@ -232,7 +231,7 @@ class CloudFrontCacheManager
     public function queueClearCache(int $pageId, bool $recursive = false, string|null $distributionIds = null)
     {
         $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: ' . $distributionIds;
-        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
 
         $wildcard = '';
         if ($recursive) {
@@ -262,12 +261,12 @@ class CloudFrontCacheManager
                 } else {
                     $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
                     $errorMessage = 'queueClearCache enque lang: 0  distributionIds: ' . $distributionIds;
-                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+                    $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
                     foreach ($languages as $k => $lang) {
                         if ($lang->getLanguageId() != 0) {
                             $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
                             $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: ' . $distributionIds;
-                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, "tm_cloudfront");
+                            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
                         }
                     }
                 }
