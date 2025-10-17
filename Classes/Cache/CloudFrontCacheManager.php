@@ -48,12 +48,14 @@ class CloudFrontCacheManager
     /**
      * This function handles the cache clearing for files and folders.
      * It enqueues the resource identifier and distribution IDs for invalidation.
-     * 
+     *
      * @param Folder|File|ProcessedFile $resource The resource that has been modified.
      * @return void
      */
     public function fileMod(Folder|File|ProcessedFile $resource): void
     {
+        if($resource->isProcessed()) return;
+
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
 
@@ -66,8 +68,10 @@ class CloudFrontCacheManager
         $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
         $this->clearCache();
 
-        $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
-        $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
+        if(isset($GLOBALS['BE_USER'])) {
+            $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
+            $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
+        }
 
         // Reset the queue after processing for testing purposes
         $this->resetQueue();
@@ -328,7 +332,7 @@ class CloudFrontCacheManager
     public function isMultiLanguageDomains(int $uid_page): bool
     {;
         $domains = $this->getLanguagesDomains($uid_page);
-        
+
         return count(array_unique(array_map('strtolower', $domains))) > 1;
     }
 
