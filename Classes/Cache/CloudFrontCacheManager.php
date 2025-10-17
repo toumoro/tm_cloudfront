@@ -54,7 +54,10 @@ class CloudFrontCacheManager
      */
     public function fileMod(Folder|File|ProcessedFile $resource): void
     {
-        if($resource->isProcessed()) return;
+        // Skip processed files that are already processed
+        if($resource instanceof ProcessedFile) {
+            if($resource->isProcessed()) return;
+        }
 
         $storage = $resource->getStorage();
         $storageConfig = $storage->getConfiguration();
