@@ -64,7 +64,7 @@ class ClearCachePostProc
         }
 
         // Do nothing if the page is a sysfolder
-        /* if ( (!empty($params['uid_page']) && MathUtility::canBeInterpretedAsInteger($params['uid_page'])) 
+        /* if ( (!empty($params['uid_page']) && MathUtility::canBeInterpretedAsInteger($params['uid_page']))
                 || (isset($params['cacheCmd']) && MathUtility::canBeInterpretedAsInteger($params['cacheCmd'])) ) {
             $uid_page = (int)$params['uid_page'] ?: (int)$params['cacheCmd'];
             $pageRecord = BackendUtility::getRecord('pages', $uid_page, 'doktype');
@@ -197,7 +197,7 @@ class ClearCachePostProc
 
             $sysLanguageUid = $row['sys_language_uid'] ?? 0;
             $language = $site->getLanguageById($sysLanguageUid);
-            $domain = $language->getBase()->getHost();
+            $domain = $this->cacheManager->getLanguageHost($language);
         }
 
         $distributionIds = $this->distributionsMapping[$domain] ?? implode(',', array_values($this->distributionsMapping));
