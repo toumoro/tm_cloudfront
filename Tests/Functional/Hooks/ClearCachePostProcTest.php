@@ -58,7 +58,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
      * |   5 |   3 | Testing 1         |                0 |           0 | /sub/sub |
      * |   6 |   3 | Sub Subpage       |                1 |           5 | /sub/sub |
      * +-----+-----+-------------------+------------------+-------------+----------+
-     * 
+     *
      * tt_content table structure
      * +-----+-----+-------------------+------------------+-------------+----------+
      * | uid | pid | header            | sys_language_uid | l18n_parent | colPos   |
@@ -82,7 +82,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
         $this->setUpFrontendSite(1);
 
         $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront'] = [
-            'distributionIds' => '{"www.example.com":"WWWWWWWWW","en.example.com":"ENENENENENEN","cdn.example.com":"CDNCDNCDNCDN","dk.example.com":"DKDKDKDKDKDK"}',
+            'distributionIds' => '{"www.example.com":"WWWWWWWWW","en.example.com":"ENENENENENEN","cdn.example.com":"CDNCDNCDNCDN","dk.example.com":"DKDKDKDKDKDK", "es.example.com":""}',
             'mode' => 'table',
             'region' => 'us',
             'apikey' => 'AAAAAAAAAAAAAAA',
@@ -186,7 +186,17 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 foreach ($allRecords as $record) {
                     var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
                 }
-                $this->assertCount(count($row['expectedArray'] ?? []), $allRecords, 'Nombre d’invalidation incorrect');
+                // Filtrage des éléments ayant un distributionId non vide
+                $expectedWithDistribution = array_filter(
+                    $row['expectedArray'] ?? [],
+                    fn(array $item) => !empty($item['distributionId'])
+                );
+
+                $this->assertCount(
+                    count($expectedWithDistribution),
+                    $allRecords,
+                    'Nombre d’invalidation incorrect (excluant les domaines sans CloudFront)'
+                );
 
                 if (isset($row['expectedArray'])) {
                     foreach ($row['expectedArray'] as $expectedRow) {
@@ -446,8 +456,22 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 )
             );
         $row = $queryBuilder->executeQuery()->fetchAssociative();
+        if ($expectedRow['distributionId']) {
+            var_dump('Checking invalidation ' . $expectedRow['pathsegment'] . ' / ' . ($expectedRow['distributionId'] ?: "(vide)"));
+            $this->assertNotFalse(
+                $expectedRow['distributionId']
+                    ? $row
+                    : $row === false,
+                'Aucune invalidation trouvée pour ' . $expectedRow['pathsegment'] . ' / ' . $expectedRow['distributionId']);
+        }
+        else {
+            var_dump('Checking no invalidation for ' . $expectedRow['pathsegment'] . ' / ' . ($expectedRow['distributionId'] ?: "(vide)"));
+            $this->assertFalse(
+                $row,
+                'Invalidation existante pour ' . $expectedRow['pathsegment'] . ' alors que distributionId vide'
+            );
+        }
 
-        $this->assertNotFalse($row, 'Aucune invalidation trouvée pour ' . $expectedRow['pathsegment'] . ' / ' . $expectedRow['distributionId']);
     }
 
     /**
