@@ -166,6 +166,9 @@ getPhpImageVersion() {
         8.3)
             echo -n "1.13"
             ;;
+        8.4)
+            echo -n "latest" # Ou la version la plus récente disponible sur ghcr.io/typo3/core-testing-php84
+            ;;
     esac
 }
 
@@ -563,7 +566,7 @@ while getopts ":a:b:s:c:d:i:t:p:e:xy:o:nhug" OPT; do
             ;;
         p)
             PHP_VERSION=${OPTARG}
-            if ! [[ ${PHP_VERSION} =~ ^(8.2|8.3)$ ]]; then
+            if ! [[ ${PHP_VERSION} =~ ^(8.2|8.3|8.4)$ ]]; then
                 INVALID_OPTIONS+=("${OPTARG}")
             fi
             ;;
