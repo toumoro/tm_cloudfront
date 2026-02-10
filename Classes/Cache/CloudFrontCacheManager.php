@@ -55,9 +55,10 @@ class CloudFrontCacheManager
      */
     public function fileMod(Folder|File|ProcessedFile $resource): void
     {
+        echo "fileMod called with resource identifier: " . $resource->getIdentifier() . "\n";
         // Skip processed files that are already processed
-        if($resource instanceof ProcessedFile) {
-            if($resource->isProcessed()) return;
+        if ($resource instanceof ProcessedFile) {
+            if ($resource->isProcessed()) return;
         }
 
         $storage = $resource->getStorage();
@@ -72,7 +73,7 @@ class CloudFrontCacheManager
         $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
         $this->clearCache();
 
-        if(isset($GLOBALS['BE_USER'])) {
+        if (isset($GLOBALS['BE_USER'])) {
             $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
         }

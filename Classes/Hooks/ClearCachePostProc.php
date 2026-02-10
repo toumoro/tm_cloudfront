@@ -36,8 +36,7 @@ class ClearCachePostProc
 
     public function __construct(
         protected SiteFinder $siteFinder
-    )
-    {
+    ) {
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)
             ->get('tm_cloudfront')['cloudfront'];
         $this->cacheManager = GeneralUtility::makeInstance(CloudFrontCacheManager::class);
@@ -55,6 +54,9 @@ class ClearCachePostProc
      */
     public function clearCachePostProc(&$params, &$pObj): void
     {
+        echo 'Running hook: ' . __METHOD__ . "\n";
+        print_r($params);
+
         // Reset the queue after processing for testing purposes
         $this->cacheManager->resetQueue();
 
@@ -109,7 +111,7 @@ class ClearCachePostProc
 
             // Priority to TsConfig settings
             if (!empty($tsConfig['TCEMAIN.'])) {
-                if(!empty($tsConfig['TCEMAIN.']['distributionIds'])) {
+                if (!empty($tsConfig['TCEMAIN.']['distributionIds'])) {
                     $distributionIds = $tsConfig['TCEMAIN.']['distributionIds'];
                 }
             }
@@ -221,7 +223,7 @@ class ClearCachePostProc
 
         $queryBuilder->getRestrictions()->removeAll();
 
-       return (int)$queryBuilder
+        return (int)$queryBuilder
             ->select('deleted')
             ->from('pages')
             ->where(
