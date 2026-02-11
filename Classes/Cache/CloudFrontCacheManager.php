@@ -20,6 +20,7 @@ namespace Toumoro\TmCloudfront\Cache;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Connection;
@@ -103,6 +104,9 @@ class CloudFrontCacheManager
      */
     public function enqueue(string $link, string $distributionIds): void
     {
+        if (!$distributionIds) {
+            return;
+        }
         if ($link === '*') {
             $link = '/*';
         }
@@ -259,10 +263,10 @@ class CloudFrontCacheManager
 
             if (count($languages) > 0) {
                 if ($this->isMultiLanguageDomains($entry)) {
-                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[(string)$languages[0]->getBase()->getHost()]);
-                    foreach ($languages as $k => $lang) {
-                        if ($lang->getLanguageId() != 0) {
-                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $this->distributionsMapping[$lang->getBase()->getHost()]);
+                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$this->getLanguageHost($languages[0])]);
+                    foreach ($languages as $k => $language) {
+                        if ($language->getLanguageId() != 0) {
+                            $this->enqueue($this->buildLink($entry, array('_language' => $language->getLanguageId())) . $wildcard, $this->distributionsMapping[$this->getLanguageHost($language)]);
                         }
                     }
                 } else {
@@ -320,10 +324,23 @@ class CloudFrontCacheManager
     {
         $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
         $domains = [];
+        // Récupération de l'hôte actuel via la requête si disponible
         foreach ($site->getAllLanguages() as $language) {
-            $domains[$language->getLanguageId()] = $language->getBase()->getHost();
+            $domains[$language->getLanguageId()] = $this->getLanguageHost($language);
         }
         return $domains;
+    }
+
+    public function getLanguageHost(SiteLanguage $language): string {
+        if ($host = $language->getBase()->getHost()) {
+            return $host;
+        }
+        $currentRequest = $GLOBALS['TYPO3_REQUEST'] ?? null;
+        if ($currentRequest
+            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface) {
+            return $currentRequest->getUri()->getHost();
+        }
+        return '';
     }
 
     /**

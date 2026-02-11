@@ -22,6 +22,17 @@ simple:
     flag: 'dk'
     fallbackType: 'fallback'
     fallbacks: 0
+  2:
+    title: 'Español'
+    enabled: true
+    languageId: 2
+    base: '/es/'
+    typo3Language: 'es'
+    locale: 'es_ES.UTF-8'
+    iso-639-1: 'es'
+    flag: 'es'
+    fallbackType: 'fallback'
+    fallbacks: 0
 multiDomain:
   0:
     title: 'English'
@@ -41,3 +52,12 @@ multiDomain:
     locale: 'da_DK.UTF-8'
     iso-639-1: 'da'
     flag: 'dk'
+  2:
+    title: 'Español'
+    enabled: true
+    languageId: 2
+    base: 'https://es.example.com/'
+    typo3Language: 'es'
+    locale: 'es_ES.UTF-8'
+    iso-639-1: 'es'
+    flag: 'es'
