@@ -128,7 +128,7 @@ class ClearCachePostProc
             } else {
                 // If the record is a page, enqueue the parent page
                 if (
-                    !$tsConfig['clearCache_disable']
+                    ! ($tsConfig['clearCache_disable'] ?? false)
                     && is_numeric($parentId)
                     && !$this->isSysFolder((int)$uid_page)
                 ) {
