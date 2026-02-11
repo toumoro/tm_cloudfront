@@ -18,8 +18,19 @@
 namespace Toumoro\TmCloudfront\EventListener;
 
 use Toumoro\TmCloudfront\Cache\CloudFrontCacheManager;
-use TYPO3\CMS\Core\Resource\Event\{AfterFileMovedEvent, AfterFileRenamedEvent, AfterFileReplacedEvent,
-    AfterFileDeletedEvent, AfterFileContentsSetEvent, AfterFolderMovedEvent, AfterFolderRenamedEvent, AfterFolderDeletedEvent};
+use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Resource\Event\{
+    AfterFileMovedEvent,
+    AfterFileRenamedEvent,
+    AfterFileReplacedEvent,
+    AfterFileDeletedEvent,
+    AfterFileContentsSetEvent,
+    AfterFolderMovedEvent,
+    AfterFolderRenamedEvent,
+    AfterFileMetaDataUpdatedEvent,
+    AfterFolderDeletedEvent
+};
 
 class FileAndFolderEventListener
 {
@@ -49,7 +60,8 @@ class FileAndFolderEventListener
     {
         try {
             $this->cacheManager->fileMod($event->getFile());
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
     }
 
     public function afterFileContentsSet(AfterFileContentsSetEvent $event): void
@@ -71,5 +83,13 @@ class FileAndFolderEventListener
     public function afterFolderDeleted(AfterFolderDeletedEvent $event): void
     {
         $this->cacheManager->fileMod($event->getFolder());
+    }
+    public function afterMetadataUpdated(AfterFileMetaDataUpdatedEvent $event): void
+    {
+
+        $resourceFactory = GeneralUtility::makeInstance(ResourceFactory::class);
+        $file = $resourceFactory->getFileObject($event->getFileUid());
+
+        $this->cacheManager->fileMod($file);
     }
 }

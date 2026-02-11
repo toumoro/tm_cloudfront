@@ -2,10 +2,10 @@
 
 namespace Toumoro\TmCloudfront\Tests\Functional\Hooks;
 
+use TYPO3\CMS\Core\Resource\Index\MetaDataRepository;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 class FileMetadataTest extends FunctionalTestCase
@@ -34,8 +34,9 @@ class FileMetadataTest extends FunctionalTestCase
     }
 
     /**
-     * @test
+     * test metadadata invalidation
      */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function editingFileMetadataDoesNotCreateRootInvalidation(): void
     {
         $storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject(1);
@@ -50,11 +51,9 @@ class FileMetadataTest extends FunctionalTestCase
             ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
             ->truncate('tx_tmcloudfront_domain_model_invalidation');
 
-        // Simulate editing metadata via DataHandler
-        $actionService = GeneralUtility::makeInstance(ActionService::class);
-        $metadata = $file->getMetaData()->get();
-        $actionService->modifyRecord('sys_file_metadata', (int)$metadata['uid'], [
-            'title' => 'New Title'
+        $subject = $this->get(MetaDataRepository::class);
+        $result = $subject->update(1, [
+            'title' => 'test2',
         ]);
 
         // Assert that no "/" invalidation was created
