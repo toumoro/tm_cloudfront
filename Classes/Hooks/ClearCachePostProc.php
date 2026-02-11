@@ -19,6 +19,7 @@ namespace Toumoro\TmCloudfront\Hooks;
 
 use Doctrine\DBAL\ParameterType;
 use Toumoro\TmCloudfront\Cache\CloudFrontCacheManager;
+use Toumoro\TmCloudfront\Log\LoggerTrait;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -29,6 +30,8 @@ use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 
 class ClearCachePostProc
 {
+    use LoggerTrait;
+
     protected array $cloudFrontConfiguration = [];
     protected array $distributionsMapping = [];
 
@@ -92,7 +95,7 @@ class ClearCachePostProc
             $domains = $this->cacheManager->getLanguagesDomains($uid_page);
             $distributionIds = $this->getDistributionsFromDomains($domains);
 
-            $GLOBALS['BE_USER']->writelog(
+            $this->writelog(
                 4,
                 0,
                 0,
@@ -147,7 +150,7 @@ class ClearCachePostProc
                 }
             }
 
-            $GLOBALS['BE_USER']->writelog(
+            $this->writelog(
                 4,
                 0,
                 0,
@@ -206,7 +209,7 @@ class ClearCachePostProc
 
         $distributionIds = $this->distributionsMapping[$domain] ?? implode(',', array_values($this->distributionsMapping));
 
-        $GLOBALS['BE_USER']->writelog(
+        $this->writelog(
             4,
             0,
             0,
