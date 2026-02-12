@@ -56,8 +56,8 @@ class CloudFrontCacheManager
     public function fileMod(Folder|File|ProcessedFile $resource): void
     {
         // Skip processed files that are already processed
-        if($resource instanceof ProcessedFile) {
-            if($resource->isProcessed()) return;
+        if ($resource instanceof ProcessedFile) {
+            if ($resource->isProcessed()) return;
         }
 
         $storage = $resource->getStorage();
@@ -72,7 +72,7 @@ class CloudFrontCacheManager
         $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
         $this->clearCache();
 
-        if(isset($GLOBALS['BE_USER'])) {
+        if (isset($GLOBALS['BE_USER'])) {
             $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
             $GLOBALS['BE_USER']->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
         }
@@ -331,13 +331,16 @@ class CloudFrontCacheManager
         return $domains;
     }
 
-    public function getLanguageHost(SiteLanguage $language): string {
+    public function getLanguageHost(SiteLanguage $language): string
+    {
         if ($host = $language->getBase()->getHost()) {
             return $host;
         }
         $currentRequest = $GLOBALS['TYPO3_REQUEST'] ?? null;
-        if ($currentRequest
-            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface) {
+        if (
+            $currentRequest
+            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface
+        ) {
             return $currentRequest->getUri()->getHost();
         }
         return '';
