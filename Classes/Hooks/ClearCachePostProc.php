@@ -54,7 +54,6 @@ class ClearCachePostProc
      */
     public function clearCachePostProc(&$params, &$pObj): void
     {
-        echo 'Running hook: ' . __METHOD__ . "\n";
         // looks if the table array key is set and in [content,pages] if not returns. This to avoid running hook on unwanted table like sys_file_metadata
         if (!empty($params['table']) && !in_array($params['table'], ['tt_content', 'pages'])) {
             return;

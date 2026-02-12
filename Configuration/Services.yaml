@@ -48,8 +48,3 @@ services:
         identifier: 'tm.afterFolderDeleted'
         method: 'afterFolderDeleted'
         event: TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterMetadataUpdated'
-        method: 'afterMetadataUpdated'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileMetaDataUpdatedEvent

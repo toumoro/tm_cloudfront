@@ -61,6 +61,6 @@ class FileMetadataTest extends FunctionalTestCase
 
         $pathSegments = array_column($rows, 'pathsegment');
         $this->assertNotContains('/', $pathSegments, 'Root invalidation "/" should not be created when editing file metadata.');
-        $this->assertContains('/test-file.txt', $pathSegments, 'The file path should be invalidated when editing its metadata.');
+        $this->assertNotContains('/test-file.txt', $pathSegments, 'The file path should not be invalidated when editing its metadata.');
     }
 }

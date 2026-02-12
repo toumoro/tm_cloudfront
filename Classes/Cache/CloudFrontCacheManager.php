@@ -55,7 +55,6 @@ class CloudFrontCacheManager
      */
     public function fileMod(Folder|File|ProcessedFile $resource): void
     {
-        echo "fileMod called with resource identifier: " . $resource->getIdentifier() . "\n";
         // Skip processed files that are already processed
         if ($resource instanceof ProcessedFile) {
             if ($resource->isProcessed()) return;
@@ -332,13 +331,16 @@ class CloudFrontCacheManager
         return $domains;
     }
 
-    public function getLanguageHost(SiteLanguage $language): string {
+    public function getLanguageHost(SiteLanguage $language): string
+    {
         if ($host = $language->getBase()->getHost()) {
             return $host;
         }
         $currentRequest = $GLOBALS['TYPO3_REQUEST'] ?? null;
-        if ($currentRequest
-            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface) {
+        if (
+            $currentRequest
+            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface
+        ) {
             return $currentRequest->getUri()->getHost();
         }
         return '';
