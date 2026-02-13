@@ -11,4 +11,6 @@ cloudfront {
    version = latest
    # cat=basic/enable; type=string; label=Mode(live or table)
    mode = live
+   # cat=basic/enable; type=boolean; label=Disable logger
+   disableLog =
 }
