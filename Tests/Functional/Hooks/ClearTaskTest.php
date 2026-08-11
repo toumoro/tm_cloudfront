@@ -74,7 +74,7 @@ class ClearTaskTest extends FunctionalTestCase
 
         $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
         $taskClass = GeneralUtility::makeInstance(\Toumoro\TmCloudfront\Task\ClearTask::class);
-        $taskClass->__wakeup();
+        $taskClass->setExtConf();
         $options = [
             'version' => $this->cloudFrontConfiguration['version'],
             'region' => $this->cloudFrontConfiguration['region'],
