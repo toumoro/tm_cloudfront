@@ -20,14 +20,11 @@ class ClearTask extends AbstractTask
     protected array $cloudFrontConfiguration = [];
     public ?CloudFrontClient $cloudFrontClient = NULL;
 
-    public function __wakeup()
-    {
-        $this->setExtConf();
-    }
-
     public function setExtConf()
     {
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
+        if ($this->cloudFrontConfiguration === []) {
+            $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
+        }
     }
 
     //for testing
@@ -59,6 +56,7 @@ class ClearTask extends AbstractTask
      */
     public function execute()
     {
+        $this->setExtConf();
         $distributionIds = explode(',', implode(',', $this->resolveDistributionIds()));
 
         foreach ($distributionIds as $distId) {

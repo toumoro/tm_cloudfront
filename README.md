@@ -24,11 +24,14 @@ This extension clears the AWS CloudFront cache based on the speaking path of a p
              'apisecret' => 'YOUR_AWS_SECRET',
              'region' => 'us-east-1',
              'version' => 'latest',
-             'distributionIds' => '{"domain1.com":"DIST_ID_1", "domain2.com":"DIST_ID_2", "cdn.domain3.com":"DIST_ID_3", "domain4.com":"DIST_ID_4, DIST_ID_5", "domain5.com":""}'
+             'distributionIds' => '{"domain1.com":"DIST_ID_1", "domain2.com":"DIST_ID_2", "cdn.domain3.com":"DIST_ID_3", "domain4.com":"DIST_ID_4, DIST_ID_5", "domain5.com":""}',
+             'disableLog' => false
          ]
      ]
      ```
     NB: to disable cache invalidation for a specific domain, set the distribution ID to an empty string. See domain5.com in the example above.
+    NB2: set disableLog to true to disable logging of invalidation requests in the TYPO3 logs.
+
 
 2. **Storage/CDN Mapping**
 
