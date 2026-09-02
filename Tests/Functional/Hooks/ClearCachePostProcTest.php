@@ -118,6 +118,48 @@ class ClearCachePostProcTest extends FunctionalTestCase
     }
 
     /**
+     * Régression #1522960188 : un tt_content en « Toutes les langues » (sys_language_uid = -1)
+     * ne doit PAS lever "Language -1 does not exist on site" au flush de cache.
+     * Attendu : le record est enregistré et le hook invalide un chemin pour CHACUNE des
+     * langues du site (l'invalidation couvre toutes les langues).
+     */
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function contentInAllLanguagesInvalidatesEveryLanguage(): void
+    {
+        $this->setUpBackendUser(1);
+        $this->setUpFrontendSite(1);
+        $this->actionService = $this->getActionService();
+
+        GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
+            ->truncate('tx_tmcloudfront_domain_model_invalidation');
+
+        // Avant le correctif, cet appel levait InvalidArgumentException #1522960188.
+        $this->actionService->createNewRecord('tt_content', 5, [
+            'header' => 'Contenu toutes langues',
+            'colPos' => 0,
+            'sys_language_uid' => -1,
+        ]);
+
+        // Le record est bien enregistré en -1.
+        $created = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getConnectionForTable('tt_content')
+            ->count('uid', 'tt_content', ['header' => 'Contenu toutes langues', 'sys_language_uid' => -1]);
+        $this->assertSame(1, $created, 'Le tt_content en -1 aurait dû être enregistré');
+
+        // Le hook invalide un chemin par langue : toutes les langues du site sont couvertes.
+        $invalidatedPaths = array_unique(array_column(
+            $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation'),
+            'pathsegment'
+        ));
+        $this->assertCount(
+            count($this->languages['simple']),
+            $invalidatedPaths,
+            'Le CE en -1 doit invalider un chemin pour chacune des ' . count($this->languages['simple']) . ' langues du site'
+        );
+    }
+
+    /**
      * Modify page or content and check if invalidation is created for simple domain
      */
     #[\PHPUnit\Framework\Attributes\Test]

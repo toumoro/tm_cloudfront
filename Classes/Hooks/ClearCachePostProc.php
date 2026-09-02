@@ -202,9 +202,15 @@ class ClearCachePostProc
                 ->executeQuery()
                 ->fetchAssociative();
 
-            $sysLanguageUid = $row['sys_language_uid'] ?? 0;
-            $language = $site->getLanguageById($sysLanguageUid);
-            $domain = $this->cacheManager->getLanguageHost($language);
+            $sysLanguageUid = (int)($row['sys_language_uid'] ?? 0);
+            // sys_language_uid = -1 (« Toutes les langues ») : aucune langue unique à
+            // résoudre. getLanguageById(-1) lèverait InvalidArgumentException #1522960188.
+            // On saute la résolution du host ; l'invalidation de CHAQUE langue est assurée
+            // en aval par queueClearCache(), qui itère getAllLanguages().
+            if ($sysLanguageUid >= 0) {
+                $language = $site->getLanguageById($sysLanguageUid);
+                $domain = $this->cacheManager->getLanguageHost($language);
+            }
         }
 
         $distributionIds = $this->distributionsMapping[$domain] ?? implode(',', array_values($this->distributionsMapping));
