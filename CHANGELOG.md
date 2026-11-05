@@ -17,6 +17,9 @@ All notable changes to this extension will be documented in this file.
 - Optional `maxInvalidationPaths` setting: above this number of paths, `/*` is invalidated instead.
 
 ### Fixed
+- File and folder invalidations use the public URL of the resource: local storages now invalidate the real path
+  (`/fileadmin/dir/x.pdf` instead of `/dir/x.pdf`), and CDN storages keep the path prefix of their base URL
+  (`https://cdn.example.com/media/` → `/media/dir/x.pdf`). The distribution is resolved with the domain of that URL.
 - `DataHandler::getPID()` no longer exists in TYPO3 v14.
 - Invalidation queue is emptied after each send (paths were sent again on later calls in live mode).
 - Queued invalidations (table mode): one query per batch instead of one per path. The task also processes
