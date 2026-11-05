@@ -133,8 +133,19 @@ Check it with `curl -sI https://www.example.com/news/my-article | grep -i cache-
 when the object is fetched from the origin. Objects cached before the configuration are only tagged after they
 expire. Invalidate `/*` once to tag them right away.
 
-The header only lists the configured tags (maximum 50 per page, the CloudFront limit). If you don't want it to reach
+The header only lists the configured tags. If you don't want it to reach
 the browsers, remove it with a CloudFront response headers policy (`RemoveHeadersConfig`).
+
+CloudFront keeps at most 50 tags per object. A page can carry more matching tags, e.g. a list rendering many records
+with `frontend.cache.autoTagging` (one `<table>_<uid>` tag per record). Above 50, the tags are reduced:
+
+1. `<table>_<uid>` is dropped when `<table>` is also present: saving the record in the backend flushes both, so the
+   page is still invalidated.
+2. The tags equal to a `cacheTags` entry (e.g. table names) are kept first.
+3. If there are still more than 50, the rest is not sent and a warning is logged with the URL. Changes to these records
+   won't invalidate that page: tag it with a broader tag (the table name, a storage folder tag...).
+
+Code that flushes only `<table>_<uid>` (without `<table>`) doesn't invalidate a page reduced by rule 1.
 
 The page cache tags come from:
 

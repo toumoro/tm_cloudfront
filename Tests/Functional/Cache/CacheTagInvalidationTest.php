@@ -163,6 +163,44 @@ final class CacheTagInvalidationTest extends FunctionalTestCase
     }
 
     #[Test]
+    public function recordTagsCoveredByTheirTableTagAreDroppedAboveTheLimit(): void
+    {
+        // e.g. a list rendering 60 news with frontend.cache.autoTagging, the table tag added last
+        $tags = array_map(static fn(int $i): string => 'tx_news_domain_model_news_' . $i, range(1, 60));
+        $tags[] = 'tx_news_pid_12';
+        $tags[] = 'tx_news_domain_model_news';
+
+        $response = $this->processMiddleware(...$tags);
+
+        self::assertSame('tx_news_pid_12, tx_news_domain_model_news', $response->getHeaderLine('x-amz-meta-cache-tag'));
+    }
+
+    #[Test]
+    public function configuredTagsAreKeptFirstWhenTheLimitIsStillExceeded(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront']['cacheTags'] = 'tx_news_uid, tx_news_pid';
+        // 60 record tags without their table tag, then a tag equal to a "cacheTags" entry
+        $tags = array_map(static fn(int $i): string => 'tx_news_uid_' . $i, range(1, 60));
+        $tags[] = 'tx_news_pid';
+
+        $sent = explode(', ', $this->processMiddleware(...$tags)->getHeaderLine('x-amz-meta-cache-tag'));
+
+        self::assertCount(50, $sent);
+        self::assertSame('tx_news_pid', $sent[0]);
+    }
+
+    #[Test]
+    public function tagsUnderTheLimitAreSentUnchanged(): void
+    {
+        $response = $this->processMiddleware('tx_news_domain_model_news', 'tx_news_domain_model_news_1', 'tx_news_pid_12');
+
+        self::assertSame(
+            'tx_news_domain_model_news, tx_news_domain_model_news_1, tx_news_pid_12',
+            $response->getHeaderLine('x-amz-meta-cache-tag')
+        );
+    }
+
+    #[Test]
     public function cacheTagCommandInvalidatesTheTagOnEveryDistribution(): void
     {
         $this->getDataHandler()->clear_cacheCmd('cacheTag:tx_news_domain_model_news_1');
