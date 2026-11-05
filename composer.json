@@ -1,6 +1,6 @@
 {
   "name": "toumoro/tm-cloudfront",
-  "description": "this extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.",
+  "description": "Clears the Amazon CloudFront cache based on the speaking path of a page, on files and on records (cache tags).",
   "license": "GPL-2.0-or-later",
   "type": "typo3-cms-extension",
   "authors": [
@@ -10,8 +10,11 @@
     }
   ],
   "require": {
-    "typo3/cms-core": "^12.4 || ^13.4",
-    "typo3/cms-scheduler": "^12.4 || ^13.4",
+    "php": "^8.2",
+    "typo3/cms-core": "^14.3",
+    "typo3/cms-backend": "^14.3",
+    "typo3/cms-frontend": "^14.3",
+    "typo3/cms-scheduler": "^14.3",
     "aws/aws-sdk-php": "^3.263"
   },
   "autoload": {
@@ -26,18 +29,18 @@
   },
   "extra": {
     "typo3/cms": {
+      "extension-key": "tm_cloudfront",
+      "version": "14.0.0",
+      "Package": {
+        "providesPackages": {}
+      },
       "app-dir": ".Build",
-      "web-dir": ".Build/Web",
-      "extension-key": "tm_cloudfront"
+      "web-dir": ".Build/Web"
     }
   },
-  "replace": {
-    "typo3-ter/tm-cloudfront": "self.version"
-  },
   "require-dev": {
-    "phpunit/phpunit": "^11.5",
-    "typo3/testing-framework": "^9.2",
-    "friendsoftypo3/typo3db-legacy": "dev-main"
+    "phpunit/phpunit": "^11.5 || ^12.1",
+    "typo3/testing-framework": "^9.2"
   },
   "config": {
     "bin-dir": ".Build/bin",

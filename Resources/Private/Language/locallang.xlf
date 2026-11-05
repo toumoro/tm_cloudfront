@@ -12,6 +12,9 @@
 			<trans-unit id="tx_tmcloudfront_task_name">
 				<source>Clear cloud front cache</source>
 			</trans-unit>
+			<trans-unit id="tx_tmcloudfront_task_description">
+				<source>Sends the CloudFront invalidations queued in the database ("table" mode).</source>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

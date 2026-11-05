@@ -1,0 +1,15 @@
+page = PAGE
+page.10 = TEXT
+page.10.value = Detail
+
+# Detail view of tx_myext_domain_model_item: tag the page with "tx_myext_domain_model_item_<uid>"
+page.stdWrap.addPageCacheTags.cObject = TEXT
+page.stdWrap.addPageCacheTags.cObject {
+  # uid from the plugin argument tx_myext_item[item] (also filled by route enhancers)
+  data = GP:tx_myext_item|item
+  # Only digits: cache tags with other characters are invalid
+  intval = 1
+  wrap = tx_myext_domain_model_item_|
+  # Only on the detail view
+  if.isTrue.data = GP:tx_myext_item|item
+}

@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * Thanks to Tim Lochmüller for sharing his code (nc_staticfilecache)
  * @author Simon Ouellet <simon.ouellet@toumoro.com>
  *         Mehdi Guermazi <mehdi.guermazi@toumoro.com>
- *
  *
  * This file is part of the "CloudFront cache" Extension for TYPO3 CMS.
  *
@@ -12,372 +13,236 @@
  * LICENSE.txt file that was distributed with this source code.
  *
  *  (c) 2025 Toumoro
- *
- ***/
+ */
 
 namespace Toumoro\TmCloudfront\Cache;
 
-use Toumoro\TmCloudfront\Log\LoggerTrait;
-use TYPO3\CMS\Core\Resource\Folder;
-use TYPO3\CMS\Core\Resource\File;
-use TYPO3\CMS\Core\Resource\ProcessedFile;
-use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Connection;
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
-use TYPO3\CMS\Core\Utility\MathUtility;
+use Psr\Http\Message\ServerRequestInterface;
+use Toumoro\TmCloudfront\Configuration\CloudFrontConfiguration;
+use Toumoro\TmCloudfront\Log\CloudFrontLogger;
+use Toumoro\TmCloudfront\Service\InvalidationDispatcher;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Resource\FileInterface;
+use TYPO3\CMS\Core\Resource\FolderInterface;
+use TYPO3\CMS\Core\Resource\ProcessedFile;
+use TYPO3\CMS\Core\Resource\ResourceInterface;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
- * Class CloudFrontCacheManager
- * This class manages the cache for CloudFront, handling invalidations and enqueuing resources.
+ * Computes the CloudFront paths to invalidate for pages, files and URLs, queues them per distribution
+ * and hands them over to the InvalidationDispatcher (live API call or database queue).
  */
 class CloudFrontCacheManager
 {
-    use LoggerTrait;
-
-    protected array $queue = [];
-    protected array $distributionsMapping = [];
-    protected array $cloudFrontConfiguration = [];
-
-    public function __construct()
-    {
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)
-            ->get('tm_cloudfront')['cloudfront'];
-        $this->distributionsMapping = $this->resolveDistributionIds();
-    }
+    /**
+     * Prefix of the tag invalidation items.
+     */
+    public const TAG_PREFIX = '#';
 
     /**
-     * This function handles the cache clearing for files and folders.
-     * It enqueues the resource identifier and distribution IDs for invalidation.
-     *
-     * @param Folder|File|ProcessedFile $resource The resource that has been modified.
-     * @return void
+     * @var array<string, list<string>> distribution id => paths
      */
-    public function fileMod(Folder|File|ProcessedFile $resource): void
+    protected array $queue = [];
+
+    public function __construct(
+        protected readonly CloudFrontConfiguration $configuration,
+        protected readonly InvalidationDispatcher $dispatcher,
+        protected readonly SiteFinder $siteFinder,
+        protected readonly CloudFrontLogger $logger,
+    ) {}
+
+    /**
+     * Invalidates a modified file or folder (folders are invalidated recursively).
+     * The distributions are resolved with the storage "publicBaseUrl" (CDN domain); when empty (local driver)
+     * every distribution is invalidated.
+     */
+    public function fileMod(ResourceInterface $resource): void
     {
-        // Skip processed files that are already processed
-        if ($resource instanceof ProcessedFile) {
-            if ($resource->isProcessed()) return;
+        // Processed files are regenerated with a new name, nothing to invalidate
+        if ($resource instanceof ProcessedFile && $resource->isProcessed()) {
+            return;
+        }
+        if (!$resource instanceof FileInterface && !$resource instanceof FolderInterface) {
+            return;
         }
 
-        $storage = $resource->getStorage();
-        $storageConfig = $storage->getConfiguration();
-
-        // si $storageConfig['publicBaseUrl'] est vide c'est un Local driver et on invvalide toutes les distributions
-        $domain = $storageConfig['publicBaseUrl'] ?? '';
-
-        $distributionIds = $this->distributionsMapping[$domain] ?? implode(',', array_values($this->distributionsMapping));
-        $wildcard = $resource instanceof Folder ? '/*' : '';
+        $domain = (string)($resource->getStorage()->getConfiguration()['publicBaseUrl'] ?? '');
+        $distributionIds = $this->configuration->getDistributionIdsForDomainOrAll($domain);
+        $wildcard = $resource instanceof FolderInterface ? '/*' : '';
 
         $this->enqueue($resource->getIdentifier() . $wildcard, $distributionIds);
         $this->clearCache();
 
-        $errorMessage = 'fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard;
-        $this->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
-
-        // Reset the queue after processing for testing purposes
-        $this->resetQueue();
+        $this->logger->info('fileMod distributionsIds : ' . $distributionIds . ' resource identifier : ' . $resource->getIdentifier() . ' wildcard : ' . $wildcard);
     }
 
     /**
-     * This function handles the cache clearing buttons and clearCacheCmd tsconfig
-     * @param array $params
-     * @param string|null $distributionIds comma seperated list of distributions ids, NULL means all (defined in the extension configuration)
-     * @return void
+     * Handles the clear cache buttons ("all", "pages") and page id cache commands.
+     *
+     * @param string|null $distributionIds comma separated list of distribution ids, null means all
      */
-    public function cacheCmd(array $params, string|null $distributionIds = null): void
+    public function cacheCmd(array $params, ?string $distributionIds = null): void
     {
-        if (($params['cacheCmd'] ?? '') === "all" || ($params['cacheCmd'] ?? '') === "pages") {
+        $cacheCmd = (string)($params['cacheCmd'] ?? '');
+        if ($cacheCmd === 'all' || $cacheCmd === 'pages') {
             $this->queueClearCache(0, true);
-        } elseif (MathUtility::canBeInterpretedAsInteger($params['cacheCmd'] ?? '')) {
-            $this->queueClearCache((int)$params['cacheCmd'], false, $distributionIds);
+        } elseif (MathUtility::canBeInterpretedAsInteger($cacheCmd)) {
+            $this->queueClearCache((int)$cacheCmd, false, $distributionIds);
         }
     }
 
     /**
-     * Enqueue a link to be cleared in CloudFront cache.
-     *
-     * @param string $link The link to enqueue.
-     * @param string $distributionIds Comma-separated list of distribution IDs.
+     * Enqueues a path for the given (comma separated) distribution ids.
      */
-    public function enqueue(string $link, string $distributionIds): void
+    public function enqueue(string $link, ?string $distributionIds): void
     {
-        if (!$distributionIds) {
+        $distributionIds = CloudFrontConfiguration::splitDistributionIds($distributionIds);
+        if ($distributionIds === []) {
             return;
         }
-        if ($link === '*') {
-            $link = '/*';
-        }
-        $link = str_replace('//', '/', $link);
-        if (substr($link, 0, 1) !== '/') {
-            $link = '/' . $link;
-        }
-
-        foreach (explode(',', $distributionIds) as $value) {
-            $value = trim($value);
-            if ($value !== '') {
-                $this->queue[$value][] = $link;
-            }
+        $link = self::normalizePath($link);
+        foreach ($distributionIds as $distributionId) {
+            $this->queue[$distributionId][] = $link;
         }
     }
 
     /**
-     * This function sends a Cloudfront invalidate query based on the cache queue ($this->queue).
-     *
-     * @return void
-     * @throws \Doctrine\DBAL\Driver\Exception
-     * @throws \Doctrine\DBAL\Exception
+     * Sends (live mode) or stores (table mode) the queued invalidations, then empties the queue.
      */
-    public function clearCache()
+    public function clearCache(): void
     {
-        foreach ($this->queue as $distId => $paths) {
-            $paths = array_unique($paths);
-            $caller = $this->generateRandomString(16);
-            $options = [
-                'version' => $this->cloudFrontConfiguration['version'],
-                'region' => $this->cloudFrontConfiguration['region'],
-                'credentials' => [
-                    'key' => $this->cloudFrontConfiguration['apikey'],
-                    'secret' => $this->cloudFrontConfiguration['apisecret'],
-                ]
-            ];
-
-            /* force a clear all cache */
-            $force = false;
-            if (array_search('/*', $paths) !== false) {
-                $paths = array('/*');
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                $queryBuilder
-                    ->delete('tx_tmcloudfront_domain_model_invalidation')
-                    ->where(
-                        $queryBuilder->expr()->eq('distributionId', $queryBuilder->createNamedParameter($distId))
-                    )
-                    ->executeStatement();
-            }
-
-            if (((!empty($this->cloudFrontConfiguration['mode'])) && ($this->cloudFrontConfiguration['mode'] == 'live')) || ($force)) {
-                $cloudFront = GeneralUtility::makeInstance('Aws\CloudFront\CloudFrontClient', $options);
-
-                try {
-                    $cloudFront->createInvalidation([
-                        'DistributionId' => $distId, // REQUIRED
-                        'InvalidationBatch' => [ // REQUIRED
-                            'CallerReference' => $caller, // REQUIRED
-                            'Paths' => [ // REQUIRED
-                                'Items' => $paths, // items or paths to invalidate
-                                'Quantity' => count($paths), // REQUIRED (must be equal to the number of 'Items' in the previus line)
-                            ]
-                        ]
-                    ]);
-                } catch (\Exception $e) {
-                    // log error: could not create invalidation
-                    $errorMessage = 'Could not create invalidation for distribution ID ' . $distId . ': ' . $e->getMessage();
-                    $this->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
-                }
-            } else {
-                foreach ($paths as $k => $value) {
-                    // if id exists, do not insert it again
-                    $id = md5($value . $distId);
-                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                        ->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
-                    $row = $queryBuilder->select('uid')
-                        ->from('tx_tmcloudfront_domain_model_invalidation')
-                        ->where(
-                            $queryBuilder->expr()->eq('id', $queryBuilder->createNamedParameter($id, Connection::PARAM_STR))
-                        )
-                        ->executeQuery()
-                        ->fetchAssociative();
-                    if (!$row) {
-                        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-                            ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation');
-                        $connection->insert(
-                            'tx_tmcloudfront_domain_model_invalidation',
-                            [
-                                'pathsegment' => $value,
-                                'distributionId' => $distId,
-                                'id' => md5($value . $distId),
-                            ]
-                        );
-                    }
-                }
-            }
+        $queue = $this->queue;
+        $this->queue = [];
+        if ($queue !== []) {
+            $this->dispatcher->dispatch($queue);
         }
     }
 
     /**
-     * Returns the distributionId(s) to use based on the domain and config
+     * Invalidates cache tags with CloudFront tag invalidation ("#tag") on every distribution.
+     * The distributions must have a CacheTagConfig, see README.
      *
-     * @return array
+     * @param list<string> $tags
      */
-    public function resolveDistributionIds(): array
+    public function invalidateTags(array $tags): void
     {
-        $mapping = $this->cloudFrontConfiguration['distributionIds'] ?? '';
-        if ($mapping && is_string($mapping) && $mapping[0] === '{') {
-            $mappingArray = json_decode($mapping, true);
-            if (is_array($mappingArray)) {
-                return $mappingArray;
-            }
+        $distributionIds = $this->configuration->getAllDistributionIds();
+        foreach ($tags as $tag) {
+            $this->enqueue(self::TAG_PREFIX . $tag, $distributionIds);
         }
-        return explode(',', $mapping);
+        $this->logger->info('invalidateTags tags: ' . implode(', ', $tags) . ' distributionIds: ' . $distributionIds);
+        $this->clearCache();
     }
 
     /**
-     * Enqueue cache entries in $this->queue
-     * A cache entry will be added to the queue for each language of the website.
-     * For exemple:
-     * If you clear the contact page, /contact/, /en/contact and
-     * /fr/contact will be cleared depending on your speaking url configuration.
+     * Enqueues the speaking path of a page for each language of its site.
+     * For example, clearing the contact page enqueues /contact/, /en/contact and /fr/contact
+     * depending on the site configuration.
      *
-     *
-     * @param int $pageId entry to clear. 0 means all cache "/"
-     * @param bool $recursive recursive entry clearing
-     * @param $distributionIds
-     *
-     * @return void
-     * @throws \Doctrine\DBAL\Driver\Exception
-     * @throws SiteNotFoundException
+     * @param int $pageId page to clear, 0 means the whole distribution ("/*")
+     * @param bool $recursive also clear the sub paths (wildcard)
+     * @param string|null $distributionIds comma separated distribution ids, null means all.
+     *                                     Ignored when the languages of the site use different domains: the
+     *                                     distribution of each language domain is used.
      */
-    public function queueClearCache(int $pageId, bool $recursive = false, string|null $distributionIds = null)
+    public function queueClearCache(int $pageId, bool $recursive = false, ?string $distributionIds = null): void
     {
-        $errorMessage = 'queueClearCache $pageId: ' . $pageId . ' recursive: ' . $recursive . ' distributionIds: ' . $distributionIds;
-        $this->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
+        $this->logger->info('queueClearCache $pageId: ' . $pageId . ' recursive: ' . (int)$recursive . ' distributionIds: ' . $distributionIds);
 
-        $wildcard = '';
-        if ($recursive) {
-            $wildcard = '*';
-        }
-        if ($pageId == 0) {
-            $entry = '/';
-        } else {
-            $entry = $pageId;
+        $wildcard = $recursive ? '*' : '';
+        $distributionIds ??= $this->configuration->getAllDistributionIds();
+
+        if ($pageId === 0) {
+            $this->enqueue('/' . $wildcard, $distributionIds);
+            return;
         }
 
-        if ($distributionIds === null) {
-            $distributionIds = implode(',', array_values($this->distributionsMapping));
-        }
-
-        if (MathUtility::canBeInterpretedAsInteger($entry)) {
-            $languages = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId)->getAllLanguages();
-
-            if (count($languages) > 0) {
-                if ($this->isMultiLanguageDomains($entry)) {
-                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $this->distributionsMapping[$this->getLanguageHost($languages[0])]);
-                    foreach ($languages as $k => $language) {
-                        if ($language->getLanguageId() != 0) {
-                            $this->enqueue($this->buildLink($entry, array('_language' => $language->getLanguageId())) . $wildcard, $this->distributionsMapping[$this->getLanguageHost($language)]);
-                        }
-                    }
-                } else {
-                    $this->enqueue($this->buildLink($entry, array('_language' => 0)) . $wildcard, $distributionIds);
-                    $errorMessage = 'queueClearCache enque lang: 0  distributionIds: ' . $distributionIds;
-                    $this->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
-                    foreach ($languages as $k => $lang) {
-                        if ($lang->getLanguageId() != 0) {
-                            $this->enqueue($this->buildLink($entry, array('_language' => $lang->getLanguageId())) . $wildcard, $distributionIds);
-                            $errorMessage = 'queueClearCache enque lang: ' . $lang->getLanguageId() . ' distributionIds: ' . $distributionIds;
-                            $this->writelog(4, 0, 0, 0, $errorMessage, ["ext" => "tm_cloudfront"]);
-                        }
-                    }
-                }
-            } else {
-                $this->enqueue($this->buildLink($entry) . $wildcard, $distributionIds);
-            }
-        } else {
-            $this->enqueue($entry . $wildcard, $distributionIds);
-        }
-    }
-
-    /**
-     * Speaking url link generation
-     *
-     * @param $pageUid
-     * @param $linkArguments
-     *
-     * @return array|false|int|string|null
-     * @throws SiteNotFoundException
-     */
-    protected function buildLink(int $pageUid, array $linkArguments = []): string
-    {
-        //some record saving function might raise a tsfe inialisation error
         try {
-            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageUid);
-            $url = (string)$site->getRouter()->generateUri((string)$pageUid, $linkArguments);
-            $url = parse_url($url, PHP_URL_PATH);
-        } catch (\TypeError $e) {
+            $site = $this->siteFinder->getSiteByPageId($pageId);
+        } catch (SiteNotFoundException) {
+            $this->logger->info('queueClearCache: no site found for page ' . $pageId);
+            return;
         }
-        if (empty($url)) {
-            //possible if the parent page is exluded from path.
-            $url = '/';
+
+        $languages = $site->getAllLanguages();
+        if ($languages === []) {
+            $link = $this->buildLink($site, $pageId);
+            if ($link !== null) {
+                $this->enqueue($link . $wildcard, $distributionIds);
+            }
+            return;
         }
-        return $url;
+
+        $hosts = array_map($this->getLanguageHost(...), $languages);
+        $multiDomain = count(array_unique(array_map('strtolower', $hosts))) > 1;
+
+        foreach ($languages as $languageId => $language) {
+            $link = $this->buildLink($site, $pageId, $language);
+            if ($link === null) {
+                continue;
+            }
+            $link .= $wildcard;
+            if ($multiDomain) {
+                // Each language domain has its own distribution(s); unmapped or empty means no invalidation
+                $this->enqueue($link, $this->configuration->getDistributionIdsForDomain($hosts[$languageId]));
+            } else {
+                $this->enqueue($link, $distributionIds);
+                $this->logger->info('queueClearCache enque lang: ' . $language->getLanguageId() . ' distributionIds: ' . $distributionIds);
+            }
+        }
     }
 
     /**
-     * Get the domains for all languages of a page.
+     * Domains of every language of the site of a page, indexed by language id.
      *
-     * @param int $uid_page The UID of the page.
-     * @return array An associative array of language IDs and their corresponding domains.
+     * @return array<int, string>
      */
     public function getLanguagesDomains(int $uid_page): array
     {
-        $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($uid_page);
-        $domains = [];
-        // Récupération de l'hôte actuel via la requête si disponible
-        foreach ($site->getAllLanguages() as $language) {
-            $domains[$language->getLanguageId()] = $this->getLanguageHost($language);
-        }
-        return $domains;
+        return array_map(
+            $this->getLanguageHost(...),
+            $this->siteFinder->getSiteByPageId($uid_page)->getAllLanguages()
+        );
     }
 
     public function getLanguageHost(SiteLanguage $language): string
     {
-        if ($host = $language->getBase()->getHost()) {
+        $host = $language->getBase()->getHost();
+        if ($host !== '') {
             return $host;
         }
-        $currentRequest = $GLOBALS['TYPO3_REQUEST'] ?? null;
-        if (
-            $currentRequest
-            && $currentRequest instanceof \Psr\Http\Message\ServerRequestInterface
-        ) {
-            return $currentRequest->getUri()->getHost();
-        }
-        return '';
+        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+        return $request instanceof ServerRequestInterface ? $request->getUri()->getHost() : '';
     }
 
     /**
-     * Check if the page has multiple languages with different domains.
-     *
-     * @param int $uid_page The UID of the page.
-     * @return bool True if there are multiple languages with different domains, false otherwise.
+     * Speaking url path of a page, null if no link can be generated (nothing is invalidated then).
      */
-    public function isMultiLanguageDomains(int $uid_page): bool
-    {;
-        $domains = $this->getLanguagesDomains($uid_page);
-
-        return count(array_unique(array_map('strtolower', $domains))) > 1;
-    }
-
-    /**
-     * Generate a random string
-     * @param int $length length of the string
-     * @return string
-     */
-    protected function generateRandomString(int $length = 10): string
+    protected function buildLink(Site $site, int $pageUid, ?SiteLanguage $language = null): ?string
     {
-        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        $charactersLength = strlen($characters);
-        $randomString = '';
-        for ($i = 0; $i < $length; $i++) {
-            $randomString .= $characters[rand(0, $charactersLength - 1)];
+        try {
+            $path = $site->getRouter()->generateUri((string)$pageUid, $language !== null ? ['_language' => $language] : [])->getPath();
+        } catch (\Throwable $e) {
+            $this->logger->error('buildLink failed for page ' . $pageUid . ': ' . $e->getMessage());
+            return null;
         }
-        return $randomString;
+        // An empty path is possible if the page (or its parent) is excluded from the path
+        return $path !== '' ? $path : '/';
     }
 
-    public function resetQueue()
+    protected static function normalizePath(string $link): string
     {
-        $this->queue = [];
+        if (str_starts_with($link, self::TAG_PREFIX)) {
+            // Tag invalidation item
+            return $link;
+        }
+        if ($link === '*') {
+            return '/*';
+        }
+        $link = str_replace('//', '/', $link);
+        return str_starts_with($link, '/') ? $link : '/' . $link;
     }
 }

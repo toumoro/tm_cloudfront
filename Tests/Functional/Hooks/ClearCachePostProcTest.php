@@ -5,7 +5,7 @@
  * @author Simon Ouellet
  */
 
-namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
+namespace Toumoro\TmCloudfront\Tests\Functional\Hooks;
 
 
 use TYPO3\CMS\Core\DataHandling\DataHandler;
@@ -14,7 +14,7 @@ use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use Symfony\Component\Yaml\Yaml;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -91,16 +91,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
         ];
     }
 
-    /**
-     * Helper function to call protected or private methods
-     */
-    protected function callInaccessibleMethod($object, $name, ...$arguments)
-    {
-        $reflectionObject = new \ReflectionObject($object);
-        $reflectionMethod = $reflectionObject->getMethod($name);
-        $reflectionMethod->setAccessible(true);
-        return $reflectionMethod->invokeArgs($object, $arguments);
-    }
 
     /**
      * Simulate clear cache for pages button
@@ -171,7 +161,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
 
         foreach ($this->contentPageTests['simple'] as $table => $rows) {
             foreach ($rows as $row) {
-                var_dump('Testing ' . $table . ' uid: ' . $row['uid'] . ' simple');
                 // Nettoyer les invalidations existantes
                 GeneralUtility::makeInstance(ConnectionPool::class)
                     ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
@@ -184,10 +173,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 );
 
                 $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
-                var_dump('all records');
-                foreach ($allRecords as $record) {
-                    var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
-                }
                 $this->assertCount(count($row['expectedArray'] ?? []), $allRecords, 'Nombre d’invalidation incorrect');
 
                 if (isset($row['expectedArray'])) {
@@ -211,7 +196,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
 
         foreach ($this->contentPageTests['multiDomain'] as $table => $rows) {
             foreach ($rows as $row) {
-                var_dump('Testing ' . $table . ' uid: ' . $row['uid'] . ' multiDomain');
                 // Nettoyer les invalidations existantes
                 GeneralUtility::makeInstance(ConnectionPool::class)
                     ->getConnectionForTable('tx_tmcloudfront_domain_model_invalidation')
@@ -224,10 +208,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 );
 
                 $allRecords = $this->getAllRecords('tx_tmcloudfront_domain_model_invalidation');
-                var_dump('all records');
-                foreach ($allRecords as $record) {
-                    var_dump($record['pathsegment'] . ' / ' . $record['distributionId']);
-                }
                 // Filtrage des éléments ayant un distributionId non vide
                 $expectedWithDistribution = array_filter(
                     $row['expectedArray'] ?? [],
@@ -266,7 +246,7 @@ class ClearCachePostProcTest extends FunctionalTestCase
                     ->truncate('tx_tmcloudfront_domain_model_invalidation');
 
                 if (method_exists($this, $test)) {
-                    $storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($storageId);
+                    $storage = GeneralUtility::makeInstance(StorageRepository::class)->getStorageObject($storageId);
                     call_user_func([$this, $test], $storage, $expectedRows);
                 }
             }
@@ -499,7 +479,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
             );
         $row = $queryBuilder->executeQuery()->fetchAssociative();
         if ($expectedRow['distributionId']) {
-            var_dump('Checking invalidation ' . $expectedRow['pathsegment'] . ' / ' . ($expectedRow['distributionId'] ?: "(vide)"));
             $this->assertNotFalse(
                 $expectedRow['distributionId']
                     ? $row
@@ -507,7 +486,6 @@ class ClearCachePostProcTest extends FunctionalTestCase
                 'Aucune invalidation trouvée pour ' . $expectedRow['pathsegment'] . ' / ' . $expectedRow['distributionId']);
         }
         else {
-            var_dump('Checking no invalidation for ' . $expectedRow['pathsegment'] . ' / ' . ($expectedRow['distributionId'] ?: "(vide)"));
             $this->assertFalse(
                 $row,
                 'Invalidation existante pour ' . $expectedRow['pathsegment'] . ' alors que distributionId vide'

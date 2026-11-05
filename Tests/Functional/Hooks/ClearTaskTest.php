@@ -5,22 +5,17 @@
  * @author Simon Ouellet
  */
 
-namespace Toumoro\TmCloudfront\Tests\Unit\Hooks;
+namespace Toumoro\TmCloudfront\Tests\Functional\Hooks;
 
 
-use TYPO3\CMS\Core\Database\Connection;
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
-use TYPO3\CMS\Core\Cache\CacheManager;
-use TYPO3\TestingFramework\Core\Functional\Framework\DataHandling\ActionService;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
-use TYPO3\CMS\Core\Resource\ResourceStorage;
-use Symfony\Component\Yaml\Yaml;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use Aws\MockHandler;
 use Aws\Result;
 use Aws\CloudFront\CloudFrontClient;
+use Toumoro\TmCloudfront\Service\InvalidationDispatcher;
+use Toumoro\TmCloudfront\Task\ClearTask;
 
 class ClearTaskTest extends FunctionalTestCase
 {
@@ -31,7 +26,6 @@ class ClearTaskTest extends FunctionalTestCase
         'toumoro/tm-cloudfront',
         'typo3/cms-scheduler'
     ];
-    protected ?array $cloudFrontConfiguration;
 
     /**
      * +-----+-----+-------------------+------------------+-------------+----------+
@@ -72,27 +66,22 @@ class ClearTaskTest extends FunctionalTestCase
     public function executeTask(): void
     {
 
-        $this->cloudFrontConfiguration = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tm_cloudfront')['cloudfront'];
-        $taskClass = GeneralUtility::makeInstance(\Toumoro\TmCloudfront\Task\ClearTask::class);
-        $taskClass->setExtConf();
-        $options = [
-            'version' => $this->cloudFrontConfiguration['version'],
-            'region' => $this->cloudFrontConfiguration['region'],
-            'credentials' => [
-                'key' => $this->cloudFrontConfiguration['apikey'],
-                'secret' => $this->cloudFrontConfiguration['apisecret'],
-            ],
-            'handler' => new MockHandler([
-                new Result(['Invalidation' => ['Id' => 'ID1234567890']]),
-                new Result(['Invalidation' => ['Id' => 'ID1234567891']]),
-                new Result(['Invalidation' => ['Id' => 'ID1234567892']]),
-                new Result(['Invalidation' => ['Id' => 'ID1234567893']]),
-                new Result(['Invalidation' => ['Id' => 'ID1234567894']]),
-                new Result(['Invalidation' => ['Id' => 'ID1234567895']]),
-            ]),
-        ];
-        $taskClass->setCloudfrontClient(GeneralUtility::makeInstance(CloudFrontClient::class, $options));
-        $taskClass->execute();
+        $mockHandler = new MockHandler([
+            new Result(['Invalidation' => ['Id' => 'ID1234567890']]),
+            new Result(['Invalidation' => ['Id' => 'ID1234567891']]),
+            new Result(['Invalidation' => ['Id' => 'ID1234567892']]),
+        ]);
+        $this->get(InvalidationDispatcher::class)->setClient(new CloudFrontClient([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'credentials' => ['key' => 'AAAAAAAAAAAAAAA', 'secret' => 'AAAAAAAAAAAAAAA'],
+            'handler' => $mockHandler,
+        ]));
+
+        $task = GeneralUtility::makeInstance(ClearTask::class);
+        $this->assertTrue($task->execute());
+        // One invalidation per distribution
+        $this->assertCount(0, $mockHandler, 'Une invalidation par distribution attendue');
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_tmcloudfront_domain_model_invalidation');
         $rows = $queryBuilder

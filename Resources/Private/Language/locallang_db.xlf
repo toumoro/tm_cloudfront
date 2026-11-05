@@ -9,6 +9,9 @@
 			<trans-unit id="tx_tmcloudfront_domain_model_invalidation.pathsegment">
 				<source>Pathsegment</source>
 			</trans-unit>
+			<trans-unit id="tx_tmcloudfront_domain_model_invalidation.distributionId">
+				<source>Distribution ID</source>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

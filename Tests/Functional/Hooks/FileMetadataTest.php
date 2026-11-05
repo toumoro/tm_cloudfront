@@ -4,7 +4,7 @@ namespace Toumoro\TmCloudfront\Tests\Functional\Hooks;
 
 use TYPO3\CMS\Core\Resource\Index\MetaDataRepository;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -39,7 +39,7 @@ class FileMetadataTest extends FunctionalTestCase
     #[\PHPUnit\Framework\Attributes\Test]
     public function editingFileMetadataDoesNotCreateRootInvalidation(): void
     {
-        $storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject(1);
+        $storage = GeneralUtility::makeInstance(StorageRepository::class)->getStorageObject(1);
 
         // Create a test file outside of the storage path
         $tempFileName = tempnam(sys_get_temp_dir(), 'test-file');

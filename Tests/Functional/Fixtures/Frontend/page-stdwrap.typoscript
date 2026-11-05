@@ -1,0 +1,4 @@
+page = PAGE
+page.10 = TEXT
+page.10.value = Hello
+page.stdWrap.addPageCacheTags = my_custom_tag, another_tag, not_configured

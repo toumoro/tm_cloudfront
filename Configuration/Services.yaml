@@ -2,49 +2,22 @@ services:
   _defaults:
     autowire: true
     autoconfigure: true
-    public: true
+    public: false
 
   Toumoro\TmCloudfront\:
     resource: '../Classes/*'
+    exclude:
+      - '../Classes/Cache/Backend/*'
+      - '../Classes/Task/*'
 
-  Toumoro\TmCloudfront\EventListener\FileAndFolderEventListener:
-    tags:
-      - name: event.listener
-        identifier: 'tm.afterFileMoved'
-        method: 'afterFileMoved'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileMovedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFileRenamed'
-        method: 'afterFileRenamed'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileRenamedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFileReplaced'
-        method: 'afterFileReplaced'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFileDeleted'
-        method: 'afterFileDeleted'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileDeletedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFileContentsSet'
-        method: 'afterFileContentsSet'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFileContentsSetEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFolderMoved'
-        method: 'afterFolderMoved'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFolderMovedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFolderRenamed'
-        method: 'afterFolderRenamed'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFolderRenamedEvent
-
-      - name: event.listener
-        identifier: 'tm.afterFolderDeleted'
-        method: 'afterFolderDeleted'
-        event: TYPO3\CMS\Core\Resource\Event\AfterFolderDeletedEvent
+  # Instantiated with GeneralUtility::makeInstance() (hook, cache backend, scheduler task)
+  Toumoro\TmCloudfront\Hooks\ClearCachePostProc:
+    public: true
+  Toumoro\TmCloudfront\Cache\CloudFrontCacheManager:
+    public: true
+  Toumoro\TmCloudfront\Service\InvalidationDispatcher:
+    public: true
+  Toumoro\TmCloudfront\Configuration\CloudFrontConfiguration:
+    public: true
+  Toumoro\TmCloudfront\Middleware\CacheTagHeaderMiddleware:
+    public: true

@@ -518,7 +518,9 @@ CONTAINER_BIN=""
 COMPOSER_ROOT_VERSION="13.2.x-dev"
 CONTAINER_SHELL="/bin/sh"
 PHPSTAN_CONFIG_FILE="$RUNTESTS_PHPSTAN_CONFIG_FILE_LOCAL"
-CONTAINER_INTERACTIVE="-it --init"
+# Only allocate a TTY when one is available (not in CI or non-interactive shells)
+CONTAINER_INTERACTIVE="--init"
+[ -t 0 ] && [ -t 1 ] && CONTAINER_INTERACTIVE="-it --init"
 HOST_UID=$(id -u)
 HOST_PID=$(id -g)
 USERSET=""

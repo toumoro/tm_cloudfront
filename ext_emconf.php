@@ -12,15 +12,16 @@
 
 $EM_CONF[$_EXTKEY] = [
     'title' => 'CloudFront cache',
-    'description' => 'This extension is designed to clear  the Amazon CloudFront cache based on the speaking path of a page.',
+    'description' => 'Clears the Amazon CloudFront cache based on the speaking path of a page, on files and on records (cache tags).',
     'category' => 'be',
     'author' => 'Simon Ouellet',
     'author_email' => '',
     'state' => 'beta',
-    'version' => '13.0.6',
+    'version' => '14.0.0',
     'constraints' => [
         'depends' => [
-            'typo3' => '12.4.0-13.5.99',
+            'typo3' => '14.3.0-14.3.99',
+            'scheduler' => '14.3.0-14.3.99',
         ],
         'conflicts' => [],
         'suggests' => [],

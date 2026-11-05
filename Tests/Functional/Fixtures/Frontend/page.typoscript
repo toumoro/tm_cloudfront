@@ -1,0 +1,5 @@
+page = PAGE
+page.10 = TEXT
+page.10.value = Hello
+# Simulates a plugin displaying a record (e.g. a news detail)
+page.10.stdWrap.addPageCacheTags = tx_news_domain_model_news_1, tx_news_pid_12, unrelated_tag

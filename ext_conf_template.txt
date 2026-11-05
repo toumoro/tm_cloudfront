@@ -13,4 +13,10 @@ cloudfront {
    mode = live
    # cat=basic/enable; type=boolean; label=Disable logger
    disableLog =
+   # cat=basic/enable; type=int+; label=Max paths per invalidation: above this number of paths for one distribution, "/*" is invalidated instead (0 = CloudFront limit of 3000)
+   maxInvalidationPaths = 0
+   # cat=basic/enable; type=string; label=Cache tags invalidated in CloudFront: comma separated table names or tag prefixes (e.g. for news: tx_news_uid,tx_news_pid,tx_news_domain_model_news). A prefix matches the tag itself and "<prefix>_<anything>" (e.g. tx_news_uid_12). Empty: disabled. The distributions need a CacheTagConfig (see README).
+   cacheTags =
+   # cat=basic/enable; type=string; label=Cache tag response header: must match the CacheTagConfig HeaderName of the distributions
+   cacheTagHeader = x-amz-meta-cache-tag
 }
