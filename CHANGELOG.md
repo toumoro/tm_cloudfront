@@ -14,6 +14,8 @@ All notable changes to this extension will be documented in this file.
 - Record cache clearing with CloudFront invalidation by cache tag: the page cache tags of the tables configured in
   the new `cacheTags` setting are sent in a response header (`cacheTagHeader`, default `x-amz-meta-cache-tag`) and
   invalidated as `#<tag>` when TYPO3 flushes them (record saved, `cacheTag:` clear cache commands, extensions).
+- `hybrid` mode: invalidations are sent immediately, and queued in the database for the scheduler task when
+  CloudFront fails or rate limits (no AWS SDK retry, the backend is not slowed down).
 - Optional `maxInvalidationPaths` setting: above this number of paths, `/*` is invalidated instead.
 
 ### Fixed

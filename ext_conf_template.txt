@@ -9,7 +9,7 @@ cloudfront {
    region = us-east-1
    # cat=basic/enable; type=string; label=Version
    version = latest
-   # cat=basic/enable; type=string; label=Mode(live or table)
+   # cat=basic/enable; type=string; label=Mode (live: sent immediately, table: queued for the scheduler task, hybrid: sent immediately and queued when CloudFront fails or rate limits)
    mode = live
    # cat=basic/enable; type=boolean; label=Disable logger
    disableLog =

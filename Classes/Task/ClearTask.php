@@ -16,7 +16,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Scheduler\Task\AbstractTask;
 
 /**
- * Sends the invalidations queued in the database ("table" mode) to CloudFront.
+ * Sends the invalidations queued in the database ("table" and "hybrid" modes) to CloudFront.
  * Registered as a native (TCA based) scheduler task, see Configuration/TCA/Overrides/tx_scheduler_task.php.
  */
 class ClearTask extends AbstractTask
