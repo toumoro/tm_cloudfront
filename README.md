@@ -46,8 +46,11 @@ Then update the database schema (`vendor/bin/typo3 extension:setup`).
    - `distributionIds`: JSON mapping `domain => distribution id(s)`, or a plain comma separated list of
      distribution ids. To disable the invalidation for a domain, map it to an empty string (`domain5.com`).
      A domain that is not mapped invalidates every distribution.
-   - `mode`: `live` sends the invalidations immediately. Any other value (e.g. `table`) stores them in the
-     database. The scheduler task "Clear cloud front cache" then sends them in batches.
+   - `mode`: `live` sends the invalidations immediately. `hybrid` sends them immediately too, but stores them in
+     the database when CloudFront fails (rate limit, too many invalidations in progress, network or credential
+     error); the AWS SDK does not retry in this mode, so saving in the backend never waits. Any other value
+     (e.g. `table`) stores them in the database. The scheduler task "Clear cloud front cache" then sends the
+     stored invalidations in batches.
    - `disableLog`: do not write the invalidations in the TYPO3 system log.
    - `maxInvalidationPaths` (optional): above this number of paths for one distribution, `/*` is invalidated
      instead. `0` means the CloudFront limit (3000).
@@ -236,7 +239,7 @@ Each tag counts as one invalidation path in CloudFront quotas and pricing.
 
 - Use the "Clear Cache" buttons in TYPO3 to trigger CloudFront invalidations.
 - Invalidations are handled automatically according to your configuration.
-- In `table` mode, create the scheduler task "Clear cloud front cache".
+- In `table` and `hybrid` modes, create the scheduler task "Clear cloud front cache".
 
 ## Testing
 

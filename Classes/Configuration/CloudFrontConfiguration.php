@@ -62,12 +62,18 @@ class CloudFrontConfiguration
     }
 
     /**
-     * "live": invalidations are sent immediately, anything else: invalidations are queued in the database
+     * "live": invalidations are sent immediately, "hybrid": sent immediately and queued in the database when
+     * CloudFront fails (rate limit, error), anything else: invalidations are queued in the database
      * and sent by the scheduler task.
      */
     public function isLiveMode(): bool
     {
         return ($this->getSettings()['mode'] ?? '') === 'live';
+    }
+
+    public function isHybridMode(): bool
+    {
+        return ($this->getSettings()['mode'] ?? '') === 'hybrid';
     }
 
     public function isLogDisabled(): bool

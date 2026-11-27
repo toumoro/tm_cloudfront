@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Toumoro\TmCloudfront\Tests\Functional\Hooks;
 
 use Aws\CloudFront\CloudFrontClient;
+use Aws\CloudFront\Exception\CloudFrontException;
+use Aws\Command;
 use Aws\MockHandler;
 use Aws\Result;
 use PHPUnit\Framework\Attributes\Test;
@@ -224,6 +226,75 @@ final class InvalidationBehaviourTest extends FunctionalTestCase
         self::assertSame(['/a', '/b', ...self::PAGE_5_PATHS], $sent);
     }
 
+    // 6. Hybrid mode
+
+    #[Test]
+    public function hybridModeSendsTheInvalidationWithoutQueuingIt(): void
+    {
+        $this->setSettings(['mode' => 'hybrid']);
+        $mockHandler = $this->mockCloudFrontResults([$this->success()]);
+
+        $this->getDataHandler()->clear_cacheCmd('5');
+
+        $sent = $this->getSentPaths($mockHandler);
+        sort($sent);
+        self::assertSame(self::PAGE_5_PATHS, $sent);
+        self::assertSame(0, $mockHandler->count());
+        self::assertSame([], $this->getInvalidations());
+    }
+
+    #[Test]
+    public function hybridModeQueuesTheInvalidationWhenCloudFrontRateLimits(): void
+    {
+        $this->setSettings(['mode' => 'hybrid']);
+        $mockHandler = $this->mockCloudFrontResults([$this->failure('Throttling')]);
+
+        $this->getDataHandler()->clear_cacheCmd('5');
+
+        self::assertSame(0, $mockHandler->count());
+        self::assertSame($this->expectedRows(self::PAGE_5_PATHS, ['WWWWWWWWW']), $this->getInvalidations());
+    }
+
+    #[Test]
+    public function hybridModeQueuesOnlyTheDistributionThatFailed(): void
+    {
+        $this->setSettings(['mode' => 'hybrid', 'distributionIds' => 'AAAAAAAAA,BBBBBBBBB']);
+        $mockHandler = $this->mockCloudFrontResults([$this->success(), $this->failure('TooManyInvalidationsInProgress')]);
+
+        $this->getDataHandler()->clear_cacheCmd('5');
+
+        self::assertSame(0, $mockHandler->count());
+        self::assertSame($this->expectedRows(self::PAGE_5_PATHS, ['BBBBBBBBB']), $this->getInvalidations());
+    }
+
+    #[Test]
+    public function hybridModeQueuesAFailedGlobalInvalidationInPlaceOfTheQueuedPaths(): void
+    {
+        $this->setSettings(['mode' => 'hybrid']);
+        $this->queue([['/old', 'WWWWWWWWW'], ['/older', 'WWWWWWWWW']]);
+        $this->mockCloudFrontResults([$this->failure('Throttling')]);
+
+        $this->getDataHandler()->clear_cacheCmd('pages');
+
+        self::assertSame([['/*', 'WWWWWWWWW']], $this->getInvalidations());
+    }
+
+    #[Test]
+    public function taskSendsTheInvalidationsQueuedInHybridMode(): void
+    {
+        $this->setSettings(['mode' => 'hybrid']);
+        $this->mockCloudFrontResults([$this->failure('Throttling')]);
+        $this->getDataHandler()->clear_cacheCmd('5');
+        $mockHandler = $this->mockCloudFrontResults([$this->success()]);
+
+        self::assertTrue(GeneralUtility::makeInstance(ClearTask::class)->execute());
+
+        $sent = $this->getSentPaths($mockHandler);
+        sort($sent);
+        self::assertSame(self::PAGE_5_PATHS, $sent);
+        self::assertSame([], $this->getInvalidations());
+    }
+
     private function setSettings(array $settings): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tm_cloudfront']['cloudfront'] = array_replace([
@@ -284,6 +355,34 @@ final class InvalidationBehaviourTest extends FunctionalTestCase
             'handler' => $mockHandler,
         ]));
         return $mockHandler;
+    }
+
+    /**
+     * Client without SDK retries, as built by the dispatcher in hybrid mode.
+     *
+     * @param list<Result|CloudFrontException> $results
+     */
+    private function mockCloudFrontResults(array $results): MockHandler
+    {
+        $mockHandler = new MockHandler($results);
+        $this->get(InvalidationDispatcher::class)->setClient(new CloudFrontClient([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'retries' => 0,
+            'credentials' => ['key' => 'AAAAAAAAAAAAAAA', 'secret' => 'AAAAAAAAAAAAAAA'],
+            'handler' => $mockHandler,
+        ]));
+        return $mockHandler;
+    }
+
+    private function success(): Result
+    {
+        return new Result(['Invalidation' => ['Id' => 'ID']]);
+    }
+
+    private function failure(string $code): CloudFrontException
+    {
+        return new CloudFrontException($code, new Command('CreateInvalidation'), ['code' => $code]);
     }
 
     /**

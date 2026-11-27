@@ -17,8 +17,8 @@ use Toumoro\TmCloudfront\Domain\Repository\InvalidationRepository;
 use Toumoro\TmCloudfront\Log\CloudFrontLogger;
 
 /**
- * Sends invalidations to CloudFront ("live" mode) or stores them in the database queue ("table" mode),
- * and processes that queue (scheduler task).
+ * Sends invalidations to CloudFront ("live" mode), stores them in the database queue ("table" mode),
+ * or sends them and queues the ones CloudFront rejected ("hybrid" mode), and processes that queue (scheduler task).
  */
 class InvalidationDispatcher
 {
@@ -43,6 +43,8 @@ class InvalidationDispatcher
     private function getClient(): CloudFrontClient
     {
         return $this->client ??= new CloudFrontClient([
+            // Hybrid mode: no SDK retry with backoff (the request would stall), a failure is queued instead
+            ...($this->configuration->isHybridMode() ? ['retries' => 0] : []),
             'version' => $this->configuration->getVersion(),
             'region' => $this->configuration->getRegion(),
             'credentials' => [
@@ -69,6 +71,15 @@ class InvalidationDispatcher
             }
             if ($this->configuration->isLiveMode()) {
                 $this->createInvalidation($distributionId, $paths);
+            } elseif ($this->configuration->isHybridMode()) {
+                if (!$this->createInvalidation($distributionId, $paths)) {
+                    $this->repository->add($distributionId, $paths);
+                    $this->logger->info(sprintf(
+                        'hybrid mode: invalidation queued for the scheduler task: %s (%s).',
+                        implode(', ', $paths),
+                        $distributionId
+                    ));
+                }
             } else {
                 $this->repository->add($distributionId, $paths);
             }
@@ -76,7 +87,7 @@ class InvalidationDispatcher
     }
 
     /**
-     * Sends the queued invalidations (table mode). Rows are only removed once CloudFront accepted them.
+     * Sends the queued invalidations (table and hybrid modes). Rows are only removed once CloudFront accepted them.
      *
      * @return bool false if at least one distribution could not be invalidated
      */

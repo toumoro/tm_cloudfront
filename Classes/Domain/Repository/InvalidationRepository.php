@@ -15,7 +15,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 
 /**
- * Database queue of pending invalidations ("table" mode), processed by the scheduler task.
+ * Database queue of pending invalidations ("table" mode, failed invalidations in "hybrid" mode), processed by the scheduler task.
  */
 class InvalidationRepository
 {
